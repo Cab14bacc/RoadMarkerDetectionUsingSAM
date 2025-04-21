@@ -1,0 +1,9 @@
+ColorFilter:
+  color_list: [[225, 225, 225], [112, 206, 244]]
+  color_threshold: 100
+  area_threshold: 50
+  save_flag: true
+
+Predictor:
+  checkpoint: './checkpoints/sam_vit_h_4b8939.pth'
+  area_threshold: 11000
