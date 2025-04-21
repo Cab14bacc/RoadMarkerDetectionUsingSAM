@@ -44,13 +44,14 @@ def predict_from_whole_mask(image_path, mask_path, output_path, config=None):
     sam_use.save_mask(masks, crop_path)
     show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
 
-def predict_each_separate_area(image_path, mask_path, output_path, area_threshold=10000, config_path=None):
+def predict_each_separate_area(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, config_path=None):
     config = None
     # check if config_path is None, if not, load config
     if config_path is not None:
         config = common.load_config(config_path=config_path, field='Predictor')
         print("Predictor use config:", config)
-        area_threshold = config['area_threshold']
+        max_area_threshold = config['max_area_threshold']
+        min_area_threshold = config['min_area_threshold']
 
     crop_path = os.path.join(output_path, 'sam_crop')
     if (not os.path.exists(crop_path)):
@@ -90,7 +91,7 @@ def predict_each_separate_area(image_path, mask_path, output_path, area_threshol
         #    show_mask_with_point(image, masks, scores, input_point, input_label)
         # if mask white area larger than threshold, skip
         area_size = np.sum(masks[0])
-        if ((area_size > area_threshold)):
+        if ((area_size < min_area_threshold) or (area_size > max_area_threshold)):
             print(f"mask{i} area {area_size} larger than threshold, skip")
             continue
 
@@ -146,12 +147,13 @@ def set_args_mask_from_file():
     parser.add_argument('--image', '-i', type=str, help='Path to the image file', required=True)
     parser.add_argument('--mask', '-m', type=str, help='Path to the mask image file', required=True)
     parser.add_argument('--output', '-o', type=str, help='Folder Path to save the output image', default='./')
+    parser.add_argument('--config', '-c', type=str, help='Path to the config file', default=None)
     args = parser.parse_args()
     return args
 
 def main_mask_from_file():
     args = set_args_mask_from_file()
-    predict_each_separate_area(args.image, args.mask, args.output)
+    predict_each_separate_area(args.image, args.mask, args.output, config_path=args.config)
     #predict_from_whole_mask(args.image, args.mask, args.output)
 
 def main():

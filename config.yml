@@ -6,4 +6,5 @@ ColorFilter:
 
 Predictor:
   checkpoint: './checkpoints/sam_vit_h_4b8939.pth'
-  area_threshold: 11000
+  max_area_threshold: 10000
+  min_area_threshold: 0
