@@ -42,7 +42,7 @@ class ColorFilter:
 
         # Save the modified image
         if self.save_flag:
-            filename = os.path.join(self.output_path, 'filter_color.jpg')
+            filename = self._get_color_mask_path()
             cv2.imwrite(filename, self.mask_color_image)
 
         gray_image = cv2.cvtColor(self.mask_color_image, cv2.COLOR_BGR2GRAY)
@@ -50,11 +50,37 @@ class ColorFilter:
         self.mask_binary_image = self._clean_small_area_from_mask(binary_image, self.area_threshold)
 
         if self.save_flag:
-            filename = os.path.join(self.output_path, 'filter_color_binary.jpg')
+            filename = self._get_binary_mask_path()
             cv2.imwrite(filename, self.mask_binary_image)
         
         # return the copy of mask binary image
         return self.mask_binary_image.copy()
+
+    #def load_existing_mask_binary(self, mask_path):
+
+    def load_existing_mask_binary(self):
+
+        mask_path = self._get_binary_mask_path()
+        # check if mask_path exists
+        if not os.path.exists(mask_path) or not os.path.isfile(mask_path):
+            print(f"Mask path {mask_path} does not exist or is not a valid file.")
+            return None
+
+        # load mask image
+        mask_image = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        if mask_image is None:
+            print(f"Could not read mask image from {mask_path}. Check the file path and format.")
+            return None
+        _, binary_image = cv2.threshold(mask_image, 127, 255, cv2.THRESH_BINARY)
+        return binary_image
+
+    def _get_color_mask_path(self):
+        filename = os.path.join(self.output_path, 'filter_color.jpg')
+        return filename
+
+    def _get_binary_mask_path(self):
+        filename = os.path.join(self.output_path, 'filter_color_binary.jpg')
+        return filename
 
     def _keep_pixel_color(self, image, threshold=80):
         # grab the image dimensions
