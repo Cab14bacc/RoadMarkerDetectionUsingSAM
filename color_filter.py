@@ -20,25 +20,29 @@ class ColorFilter:
         self.color_threshold = color_threshold
         self.area_threshold = area_threshold
         self.save_flag = save_flag
-        
+        self.color_label = []
         if config is not None:
             self._set_config_param(config)
 
         self.image = None
         self.mask_color_image = None
         self.mask_binary_image = None
+        self.label_image_list = None
 
         # check input_path is file
         if not os.path.isfile(input_path):
             raise ValueError(f"Input path {input_path} is not a valid file.")
         
         self.image = cv2.imread(input_path)  # Load in grayscale
+        self.image = common.enhance_brightness_saturation(self.image)
+        cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
+
         if self.image is None:
             raise ValueError(f"Could not read image from {input_path}. Check the file path and format.")
 
-    def filter_color_mask(self):
+    def filter_color_mask(self, color_str='all'):
         # Apply color filter
-        self.mask_color_image = self._keep_pixel_color(self.image, threshold=self.color_threshold)
+        self.mask_color_image, self.label_image_list = self._keep_pixel_color(self.image, threshold=self.color_threshold)
 
         # Save the modified image
         if self.save_flag:
@@ -48,19 +52,37 @@ class ColorFilter:
         gray_image = cv2.cvtColor(self.mask_color_image, cv2.COLOR_BGR2GRAY)
         _, binary_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
         self.mask_binary_image = self._clean_small_area_from_mask(binary_image, self.area_threshold)
+        if (self.label_image_list is not None):
+            for i in range(len(self.label_image_list)):
+                self.label_image_list[i] = self._clean_small_area_from_mask(self.label_image_list[i], self.area_threshold)
 
         if self.save_flag:
             filename = self._get_binary_mask_path()
             cv2.imwrite(filename, self.mask_binary_image)
+            if (self.label_image_list is not None):
+                for i in range(len(self.label_image_list)):
+                    filename = self._get_binary_color_mask_path(self.color_label[i])
+                    cv2.imwrite(filename, self.label_image_list[i])
         
-        # return the copy of mask binary image
-        return self.mask_binary_image.copy()
+        index = -1
+        # index = where self.color_label == color_str, if no match label index = -1
+        if color_str != 'all':
+            index = self.color_label.index(color_str) if color_str in self.color_label else -1
+        # if index == -1, return the mask binary image
 
-    #def load_existing_mask_binary(self, mask_path):
+        if index == -1:
+            # return the mask binary image
+            return self.mask_binary_image.copy()
+        else:
+            # return the label image
+            return self.label_image_list[index].copy()
 
-    def load_existing_mask_binary(self):
+    def load_existing_mask_binary(self, color_str='all'):
+        if (color_str not in self.color_label):
+            mask_path = self._get_binary_mask_path()
+        else:
+            mask_path = self._get_binary_color_mask_path(color_str)
 
-        mask_path = self._get_binary_mask_path()
         # check if mask_path exists
         if not os.path.exists(mask_path) or not os.path.isfile(mask_path):
             print(f"Mask path {mask_path} does not exist or is not a valid file.")
@@ -74,6 +96,17 @@ class ColorFilter:
         _, binary_image = cv2.threshold(mask_image, 127, 255, cv2.THRESH_BINARY)
         return binary_image
 
+    def get_label_image_from_color(self, color_str='white'):
+        # check if color_str is in color_label list
+        if color_str not in self.color_label:
+            return None
+
+        # get the index of the color_str in color_label list
+        index = self.color_label.index(color_str)
+
+        # return the label image
+        return self.label_image_list[index]
+
     def _get_color_mask_path(self):
         filename = os.path.join(self.output_path, 'filter_color.jpg')
         return filename
@@ -82,21 +115,28 @@ class ColorFilter:
         filename = os.path.join(self.output_path, 'filter_color_binary.jpg')
         return filename
 
+    def _get_binary_color_mask_path(self, color_str='_'):
+        filename = os.path.join(self.output_path, f'filter_color_binary_{str(color_str)}.jpg')
+        return filename
+
     def _keep_pixel_color(self, image, threshold=80):
         # grab the image dimensions
         h, w = image.shape[:2]
 
-        # copy image
-        target = image.copy()
+        # create a black mask same size as image
+        target = np.zeros((h, w, 3), dtype=np.uint8)
+        label_image_list = [np.zeros((h, w), dtype=np.uint8) for _ in range(len(self.color_list))]
 
         # loop over the image pixel by pixel, keep the color in color_list
         # distances: the difference between the color and the color in color_list
         for y in range(0, h):
             for x in range(0, w):
                 color = image[y, x]
-                target[y, x], distances = self._find_close_color(image[y, x], np.array(self.color_list), threshold=threshold)
+                target[y, x], distances, color_index = self._find_close_color(image[y, x], np.array(self.color_list), threshold=threshold)
+                if color_index != -1:
+                    label_image_list[color_index][y, x] = 255
         # return the thresholded image
-        return target
+        return target, label_image_list
     
     # set black if the color is not in color_list
     def _find_close_color(self, pixel, colors, threshold=None):
@@ -105,8 +145,8 @@ class ColorFilter:
 
         # check distance small than threshold. If not return black
         if threshold is not None and distances[index_of_smallest[0]][0] > threshold:
-            return np.array([0, 0, 0]), distances
-        return pixel, distances
+            return np.array([0, 0, 0]), distances, -1
+        return pixel, distances, index_of_smallest[0][0]
     
     def _clean_small_area_from_mask(self, mask, threshold=50):
         '''
@@ -138,6 +178,7 @@ class ColorFilter:
             self.color_threshold = config['color_threshold']
             self.area_threshold = config['area_threshold']
             self.save_flag = config['save_flag']
+            self.color_label = config['color_label']
             print("color filter use config:", config)
 
 def set_args():

@@ -1,10 +1,12 @@
 ColorFilter:
   color_list: [[225, 225, 225], [112, 206, 244]]
+  color_label: ['white', 'yellow']
   color_threshold: 120
   area_threshold: 20
   save_flag: true
 
 Predictor:
   checkpoint: './checkpoints/sam_vit_h_4b8939.pth'
-  max_area_threshold: [10000, 100000]
-  min_area_threshold: [0, 2000]
+  max_area_threshold: [10000, 50000]
+  min_area_threshold: [0, 0]
+  color_threshold: 120
