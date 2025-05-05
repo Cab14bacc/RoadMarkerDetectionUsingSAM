@@ -59,7 +59,7 @@ class ColorFilter:
         if self.save_flag:
             filename = self._get_binary_mask_path()
             cv2.imwrite(filename, self.mask_binary_image)
-            if (self.label_image_list is not None):
+            if (self.label_image_list is not None) and (self.color_label is not None):
                 for i in range(len(self.label_image_list)):
                     filename = self._get_binary_color_mask_path(self.color_label[i])
                     cv2.imwrite(filename, self.label_image_list[i])
@@ -123,30 +123,35 @@ class ColorFilter:
         # grab the image dimensions
         h, w = image.shape[:2]
 
-        # create a black mask same size as image
-        target = np.zeros((h, w, 3), dtype=np.uint8)
-        label_image_list = [np.zeros((h, w), dtype=np.uint8) for _ in range(len(self.color_list))]
+        reshaped_image = image.reshape(-1, 3)  # (H*W, 3)
+        colors = np.array(self.color_list)     # (N, 3)
 
-        # loop over the image pixel by pixel, keep the color in color_list
-        # distances: the difference between the color and the color in color_list
-        for y in range(0, h):
-            for x in range(0, w):
-                color = image[y, x]
-                target[y, x], distances, color_index = self._find_close_color(image[y, x], np.array(self.color_list), threshold=threshold)
-                if color_index != -1:
-                    label_image_list[color_index][y, x] = 255
+        # check each pixel distance
+        dists = np.linalg.norm(reshaped_image[:, None, :] - colors[None, :, :], axis=2)
+
+        # find closest color index
+        closest_indices = np.argmin(dists, axis=1)
+        closest_distances = np.min(dists, axis=1)
+
+        within_threshold = closest_distances <= threshold
+        
+        target = np.zeros_like(reshaped_image)
+        label_image_list = [np.zeros((h * w,), dtype=np.uint8) for _ in range(len(self.color_list))]
+
+        # default image
+        target[within_threshold] = reshaped_image[within_threshold]
+
+        # color image
+        for i in range(len(self.color_list)):
+            mask = within_threshold & (closest_indices == i)
+            label_image_list[i][mask] = 255
+
+        # reshape to original image
+        target = target.reshape(h, w, 3)
+        label_image_list = [label.reshape(h, w) for label in label_image_list]
+
         # return the thresholded image
         return target, label_image_list
-    
-    # set black if the color is not in color_list
-    def _find_close_color(self, pixel, colors, threshold=None):
-        distances = np.sqrt(np.sum((colors-pixel)**2,axis=1))
-        index_of_smallest = np.where(distances==np.amin(distances))
-
-        # check distance small than threshold. If not return black
-        if threshold is not None and distances[index_of_smallest[0]][0] > threshold:
-            return np.array([0, 0, 0]), distances, -1
-        return pixel, distances, index_of_smallest[0][0]
     
     def _clean_small_area_from_mask(self, mask, threshold=50):
         '''
@@ -185,11 +190,12 @@ def set_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', '-i', type=str, help='Path to the image file', required=True)
     parser.add_argument('--output', '-o', type=str, help='Path to save the output image', default='./')
+    parser.add_argument('--config', '-c', type=str, help='Path to the config file', default=None)
     args = parser.parse_args()
     return args
 
 if __name__ == "__main__":
     args = set_args()
-    filter = ColorFilter(args.image, args.output, save_flag=True)
+    filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True)
     filter.filter_color_mask()
     
