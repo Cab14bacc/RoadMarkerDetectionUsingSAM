@@ -5,32 +5,47 @@ import numpy as np
 from mapJson.mapObjData import MapJsonObj
 # input binary mask image.
 # ratio is the aspect ratio threshold to determine if the object is long and thin.
-def analyze_line_mask(mask_image, ratio=10, pixel_cm=5):
+def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
     contours, _ = cv2.findContours(mask_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+    count = 0
     for cnt in contours:
+
+        mask = np.zeros_like(mask_image)
+        cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
+
         area = cv2.contourArea(cnt)
+
+        # measure thickness (distance to nearest background pixel)
+        dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+        # distanceTransform give half width
+        max_thickness = dist.max() * 2
+
+        if max_thickness > 350/pixel_cm:
+            return False
 
         # Bounding rectangle
         x, y, w, h = cv2.boundingRect(cnt)
         aspect_ratio = float(w) / h if h != 0 else 0
         rect = cv2.minAreaRect(cnt)
         (center), (width, height), angle = rect
-            
-        # most of marker and line width smaller than 250cm 
-        if (min(width, height) > 250/pixel_cm):
-            return False
+
+        # # most of marker and line width smaller than 250cm 
+        # if (min(width, height) > 350/pixel_cm):
+        #     return False
+
         # aspect ratio
         min_aspect_ratio = max(width, height) / min(width, height) if min(width, height) != 0 else 0
 
-        # Optional: Calculate solidity
-        hull = cv2.convexHull(cnt)
-        hull_area = cv2.contourArea(hull)
-        solidity = float(area) / hull_area if hull_area != 0 else 0
+        # # Optional: Calculate solidity
+        # hull = cv2.convexHull(cnt)
+        # hull_area = cv2.contourArea(hull)
+        # solidity = float(area) / hull_area if hull_area != 0 else 0
         
         # Check if the object is long and thin
         if min_aspect_ratio < ratio:
             return False
+        count += 1
     return True
 
 def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5):
@@ -41,30 +56,43 @@ def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5):
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
 
+        # draw the mask
+        temp_mask = np.zeros_like(mask_image, dtype=np.uint8)
+        temp_mask[labels == i] = 255
+
+        # measure thickness (distance to nearest background pixel)
+        dist = cv2.distanceTransform(temp_mask, cv2.DIST_L2, 5)
+        # distanceTransform give half width
+        max_thickness = dist.max() * 2
+        
+        if max_thickness > 350/pixel_cm:
+            print("max_thickness: ", max_thickness)
+            continue
+
         # Bounding rectangle
         x, y, w, h = stats[i, :4]
         aspect_ratio = float(w) / h if h != 0 else 0
         rect = cv2.minAreaRect(np.argwhere(labels == i))
         (center), (width, height), angle = rect
-        
-        # most of marker and line width smaller than 250cm 
-        if (min(width, height) > 250/pixel_cm):
-            continue
+
+        # # most of marker and line width smaller than 250cm 
+        # if (min(width, height) > 250/pixel_cm):
+        #     continue
+
         # aspect ratio
         min_aspect_ratio = max(width, height) / min(width, height) if min(width, height) != 0 else 0
 
         # Optional: Calculate solidity
-        hull = cv2.convexHull(np.argwhere(labels == i))
-        hull_area = cv2.contourArea(hull)
-        solidity = float(area) / hull_area if hull_area != 0 else 0
+        # hull = cv2.convexHull(np.argwhere(labels == i))
+        # hull_area = cv2.contourArea(hull)
+        # solidity = float(area) / hull_area if hull_area != 0 else 0
         
         # Check if the object is long and thin
         if min_aspect_ratio < ratio:
             continue
         
-        # draw the mask
-        mask[labels == i] = 1
         keep_mask_flag = True
+        mask[labels == i] = 1
     return keep_mask_flag, mask
 
 

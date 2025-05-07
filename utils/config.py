@@ -22,4 +22,10 @@ class Config:
     
     def get_all_config(self):
         return self.config
+    
+    def get_pixel_cm(self):
+        if (self.config is not None):
+            return self.get('Predictor')['pixel_cm']
+        else:
+            return 1
 

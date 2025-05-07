@@ -18,6 +18,11 @@ def build_point_grid(n_per_side: int) -> np.ndarray:
     points = np.stack([points_x, points_y], axis=-1).reshape(-1, 2)
     return points
 
+def build_point_grid_from_real_size(pixel_cm: int, width: int, height: int):
+    sample_len = min(width, height)
+    n_per_side = sample_len * pixel_cm / 25
+    return build_point_grid(int(n_per_side))
+
 def save_mask(masks, path="./"):
     # Assuming 'masks' contains the generated masks from SAM2
     for i, mask in enumerate(masks):
@@ -174,13 +179,11 @@ def build_point_grid_in_mask(n_per_side: int, mask_array: np.ndarray, grids=None
     height, width = mask_array.shape
     pixel_points = np.array([[int(point[0] * width), int(point[1] * height)] for point in points])
 
-    # Filter out points that fall on the mask
-    filtered_pixel_points = []
-    for point in pixel_points:
-        x, y = point
-        if mask_array[y, x] == 255:  # Check if the point is inside the mask
-            filtered_pixel_points.append(point)
+    x_coords = pixel_points[:, 0]
+    y_coords = pixel_points[:, 1]
+    mask_values = mask_array[y_coords, x_coords]
 
+    filtered_pixel_points = pixel_points[mask_values == 255]
     return np.array(filtered_pixel_points)
 
 
@@ -274,7 +277,7 @@ def sample_points_from_mask(mask_image, grids=None):
         # create a mask for each component
         mask = np.zeros_like(binary_mask)
         mask[labels == i] = 255
-
+    
         input_points = build_point_grid_in_mask(64, mask, grids=grids) 
         # find contours will miss some areas, so use the centroid of the mask as input point
         if (input_points.shape[0] == 0):
@@ -341,7 +344,6 @@ def check_mask_type(mask_image):
     else:
         raise TypeError("mask_image should be either a file path or a numpy array")
 
-    binary_mask_tensor = torch.from_numpy(binary_mask).unsqueeze(0).unsqueeze(0)
     return binary_mask
 
 def save_keep_index_list(save_path, keep_index_list, keep_area_list=None, filename='keep_index_list.txt'):
@@ -353,4 +355,3 @@ def save_keep_index_list(save_path, keep_index_list, keep_area_list=None, filena
             if keep_area_list is not None:
                 f.write(" %s" % keep_area_list[i])
             f.write("\n")
-
