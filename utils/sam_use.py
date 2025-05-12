@@ -20,7 +20,7 @@ def build_point_grid(n_per_side: int) -> np.ndarray:
 
 def build_point_grid_from_real_size(pixel_cm: int, width: int, height: int):
     sample_len = min(width, height)
-    n_per_side = sample_len * pixel_cm / 25
+    n_per_side = sample_len * pixel_cm / 32
     return build_point_grid(int(n_per_side))
 
 def save_mask(masks, path="./"):
@@ -186,7 +186,6 @@ def build_point_grid_in_mask(n_per_side: int, mask_array: np.ndarray, grids=None
     filtered_pixel_points = pixel_points[mask_values == 255]
     return np.array(filtered_pixel_points)
 
-
 def sample_grid_from_mask(mask_image, min_area_threshold=10000, grids=None, sample_outside=False):
     binary_mask = check_mask_type(mask_image)
 
@@ -206,8 +205,6 @@ def sample_grid_from_mask(mask_image, min_area_threshold=10000, grids=None, samp
         # create a mask for each component
         mask = np.zeros_like(binary_mask)
         mask[labels == i] = 255  # Set the component to white
-        # if (common.analyze_line_mask(mask)):
-        #     continue
         
         input_points = build_point_grid_in_mask(128, mask, grids=grids)  # Example usage of build_point_grid_in_mask
         input_labels = np.ones(input_points.shape[0], dtype=int)  # Foreground
@@ -266,34 +263,6 @@ def contours_to_centroids_sample(contours):
     cy = int(M["m01"] / M["m00"])
     return cx, cy
 
-def sample_points_from_mask(mask_image, grids=None):
-    binary_mask = check_mask_type(mask_image)
-    
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
-    input_points_list = []
-    input_labels_list = []
-    for i in range(1, num_labels):
-
-        # create a mask for each component
-        mask = np.zeros_like(binary_mask)
-        mask[labels == i] = 255
-    
-        input_points = build_point_grid_in_mask(64, mask, grids=grids) 
-        # find contours will miss some areas, so use the centroid of the mask as input point
-        if (input_points.shape[0] == 0):
-            cx, cy = find_centroid_in_white(mask)
-
-            input_points = np.array([[cx, cy]])
-            input_labels = np.array([1])
-            # Sample points outside the mask
-            # input_one_point, input_one_label = sample_points_outside_mask(mask_array, input_one_point, input_one_label)
-        else:
-            input_labels = np.ones(input_points.shape[0], dtype=int)  # Foreground
-        
-        input_points_list.append(input_points)
-        input_labels_list.append(input_labels)
-
-    return input_points_list, input_labels_list
 
 def sample_points_outside_mask(mask_array, input_point, input_label):
     # Define the number of uniform points to sample

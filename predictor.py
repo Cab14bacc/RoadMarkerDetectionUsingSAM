@@ -4,6 +4,7 @@ import argparse
 import cv2
 import sys
 import os
+import time
 from PIL import Image
 
 from color_filter import ColorFilter
@@ -23,43 +24,46 @@ from mapJson.mapObjData import MapJsonObj
 
 from dataManager.tileManager import TileManager
 
-def predict_process(image, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None):
-    mask_selector = SAMMaskSelector(config=config.get_all_config())
-    predictor = sam_model_setting(config=config)
-    predictor.set_image(image)
+def predict_process(image, predictor, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None, index=None):
+    mask_selector = SAMMaskSelector(config=config)
 
+    save_flag = config.get(field='Predictor')['save_flag']
     # new a black image as mask combine result
     mask_combine = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
     keep_index_list = []
     keep_area_list = []
     map_obj_list = []
+    
     for i in range(len(input_points_list)):
 
         input_point = input_points_list[i]
         input_label = input_labels_list[i]
         
         #mask_input = sam_use.load_mask_image_as_sam_input(mask_path)
-
         masks, scores, logits = predictor.predict(
             point_coords=input_point,
             point_labels=input_label,
             #mask_input=mask_input,
             multimask_output=False,
         )
-        if (save_mask_path is not None):
-            sam_use.save_mask_index(masks[0], save_mask_path, index=i)
-        # if (i == 22):
-        #    show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
-        # show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
+        # if (i == 145):
+        #     show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
         # if mask white area larger or smaller than threshold, skip
         area_size = np.sum(masks[0])
+
+        result_mask = masks[0]
+        if save_flag and (save_mask_path is not None):
+            sam_use.save_mask_index(result_mask, save_mask_path, index=i)
         if (not mask_selector.selector(masks[0], i, usage=usage)):
             continue
         
-        result_mask = masks[0]
-        if (usage == 'line' and save_line_path is not None):
-            result_mask = mask_selector.get_selected_mask()
-            sam_use.save_mask_index(result_mask, save_line_path, index=i)
+        result_mask = mask_selector.get_selected_mask()
+        if (usage == 'line'):
+            if save_flag and save_line_path is not None:
+                sam_use.save_mask_index(result_mask, save_line_path, index=i)
+
+        
+
         keep_index_list.append(i)
         keep_area_list.append(area_size)
         # combine to mask_combine
@@ -73,14 +77,15 @@ def predict_process(image, input_points_list, input_labels_list, usage, config, 
     # save mask_combine as mask_combine.png
     # mask combine to opencv accept format
     mask_combine = mask_combine.astype(np.uint8) * 255
-    mask_combine = common.clean_small_area_from_mask(mask_combine, threshold=100)
+    #mask_combine = common.clean_small_area_from_mask(mask_combine, threshold=100)
 
     return mask_combine, keep_index_list, keep_area_list
 
-def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config_path=None):
-    config = None
+def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config=None):
 
-    config = Config(config_path=config_path)
+    save_flag = False
+    if config is not None:
+        save_flag = config.get(field='Predictor')['save_flag']
     pixel_cm = config.get_pixel_cm()
 
     # create save folder
@@ -104,58 +109,65 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
         image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
+    start_sample_time = time.perf_counter()
     grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]))
-    if (usage == 'square' or usage == 'yellow'):
-        input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
-    else:
-        input_points_list, input_labels_list = sam_use.sample_points_from_mask(mask_path, grids=grids)
-    
+    input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
+
+    end_sample_time = time.perf_counter()
+    print('sample points time: %f s' % (end_sample_time - start_sample_time))
+
     tileManager = TileManager(
         source_image=image,
         input_points_list=input_points_list,
         input_labels_list=input_labels_list,
         mask_path=mask_path
     )
-
+    
     tileManager.split_tile()
 
     image_list, input_points_list_set, input_labels_list_set = tileManager.get_list_of_sam_parameters()
 
     mask_combine_list = []
+    print("start predict each tile")
     count = 0
+    predictor = sam_model_setting(config=config)
+    
     for local_image, local_points_list, local_labels_list in zip(image_list, input_points_list_set, input_labels_list_set):
-        # print("local_points_list: ", local_points_list[0])
-        # print("local labels list: ", local_labels_list[0])
-        # continue
+        start_predict_time = time.perf_counter()
+        show_index = None
+        # if count == 13:
+        #     show_index = 13
 
         local_mask_path = os.path.join(save_mask_path, f'{count}')
         if (not os.path.exists(local_mask_path)):
             os.makedirs(local_mask_path, exist_ok=True)
 
+        predictor.set_image(local_image)
         mask_combine_image, keep_index_list, keep_area_list = predict_process(
             image=local_image,
+            predictor=predictor,
             input_points_list=local_points_list,
             input_labels_list=local_labels_list,
             usage=usage,
             config=config,
-            save_mask_path=local_mask_path
+            save_mask_path=local_mask_path,
+            index=show_index,
         )
         mask_combine_list.append(mask_combine_image)
 
-        file_name = f"combine_{count}.png"
-        cv2.imwrite(os.path.join(save_mask_path, file_name), mask_combine_image)
-        sam_use.save_keep_index_list(save_mask_path, keep_index_list, keep_area_list, f"keep_index_list_{count}.txt")
+        if (save_flag):
+            file_name = f"combine_{count}.png"
+            cv2.imwrite(os.path.join(save_mask_path, file_name), mask_combine_image)
+            sam_use.save_keep_index_list(save_mask_path, keep_index_list, keep_area_list, f"keep_index_list_{count}.txt")
         count = count + 1
+        end_predict_time = time.perf_counter()
+        print(f'predict index{count - 1} time: {(end_predict_time - start_predict_time)} s')
     
     result = tileManager.combine_result_from_list(mask_combine_list, save_path)
     mask_combine_image = Image.fromarray(result)  # Convert to 8-bit grayscale
     mask_combine_image.save(os.path.join(save_path, 'tile_combine.png'))  # Save as PNG with a unique name
 
-def predict_each_separate_area(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config_path=None):
-    config = None
-    grids = sam_use.build_point_grid(128)
-
-    config = Config(config_path=config_path)
+def predict_each_separate_area(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config=None):
 
     # create save folder
     save_path = os.path.join(output_path, usage)
@@ -178,10 +190,9 @@ def predict_each_separate_area(image_path, mask_path, output_path, max_area_thre
         image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    if (usage == 'square' or usage == 'yellow'):
-        input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
-    else:
-        input_points_list, input_labels_list = sam_use.sample_points_from_mask(mask_path, grids=grids)
+    pixel_cm = config.get_pixel_cm()
+    grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]))
+    input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
 
     # test reference: https://github.com/computa`tional-cell-analytics/micro-sam/blob/83997ff4a471cd2159fda4e26d1445f3be79eb08/micro_sam/prompt_based_segmentation.py#L115
     # some times more noise
@@ -189,6 +200,8 @@ def predict_each_separate_area(image_path, mask_path, output_path, max_area_thre
     # print("local_points_list: ", input_points_list)
     # print("local labels list: ", input_labels_list)
     # return
+    predictor = sam_model_setting(config=config)
+    predictor.set_image(image)
     mask_combine, keep_index_list, keep_area_list = predict_process(
         image=image,
         input_points_list=input_points_list,
@@ -261,18 +274,30 @@ def set_args_mask_from_file():
 
 def main_mask_from_file():
     args = set_args_mask_from_file()
-    predict_each_separate_area(args.image, args.mask, args.output, config_path=args.config)
+    config = None
+    config = Config(config_path=args.config)
+    predict_each_separate_area(args.image, args.mask, args.output, config=config)
 
 def main():
+    
     args = set_args()
-    usage_list = ['default', 'square', 'yellow', 'line']
+    config = None
+    config = Config(config_path=args.config)
+
     usage = args.usage
+    usage_list = ['default', 'square', 'yellow', 'arrow', 'line']
+    if config is not None:
+        usage_list = config.get(field='Predictor')['usage_list']
+        if usage not in usage_list:
+            print(f"Usage {usage} not in {usage_list}, use default")
+            usage = 'default'
+    
     if usage not in usage_list:
         print(f"Usage {usage} not in {usage_list}, use default")
         usage = 'default'
     
     mask_flag = False
-
+    
     filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True)
 
     if args.exist_mask:
@@ -285,33 +310,9 @@ def main():
         mask_flag = True
     
     print("start predict image...")
+
     #predict_each_separate_area(args.image, binary_mask, args.output, usage=usage, config_path=args.config)
-    predict_each_sepatate_area_from_image_tile(args.image, binary_mask, args.output, usage=usage, config_path=args.config)
-
-def run_folder():
-    folder = r"D:\GameLab\accident\datas\Xinsheng\part2_ortho"
-
-    folder_list = os.listdir(folder)
-    for i in range(len(folder_list)):
-        index = i + 1
-        image_folder = os.path.join(folder, f"ortho_{index}")
-        image_file = os.path.join(image_folder, f"ortho_{index}.tif")
-        usage = 'line'
-
-        mask_flag = False
-        exist_mask = True
-        filter = ColorFilter(image_file, image_folder, config='config.yml', save_flag=True)
-
-        if exist_mask:
-
-            binary_mask = filter.load_existing_mask_binary(usage)
-            mask_flag = binary_mask is not None
-        
-        if not mask_flag:
-            binary_mask = filter.filter_color_mask(usage)
-            mask_flag = True
-        
-        predict_each_separate_area(image_file, binary_mask, image_folder, usage=usage, config_path='config.yml')
+    predict_each_sepatate_area_from_image_tile(args.image, binary_mask, args.output, usage=usage, config=config)
 
 if __name__ == "__main__":
     #local_test()

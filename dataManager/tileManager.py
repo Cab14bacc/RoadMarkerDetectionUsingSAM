@@ -39,11 +39,13 @@ class TileManager:
         input_points_list, input_labels_list = self.source_tile.get_input_list()
         tile_size = self.tile_size
 
+        h, w, _ = image.shape
         for y_start in y_starts:
             for x_start in x_starts:
-                x_end = x_start + tile_size
-                y_end = y_start + tile_size
-
+                x_end = min(x_start + tile_size, w)
+                y_end = min(y_start + tile_size, h)
+                print(f"x start: {x_start}, end: {x_end}")
+                print(f"y start: {y_start}, end: {y_end}")
                 tile = image[y_start:y_end, x_start:x_end].copy()
                 local_points_list, local_labels_list = self._split_input_list_from_range(input_points_list, input_labels_list, [x_start, x_end], [y_start, y_end])
 
@@ -56,36 +58,32 @@ class TileManager:
                     )
                     self.split_tile_list.append(tile_data)
 
-
     def _compute_tile_position(self, shape):
         h, w = shape
         tile_size = self.tile_size
 
         def compute_positions(length):
-            positions = list(range(0, length, tile_size))
-            if length > tile_size and length % tile_size != 0:
-                if (length - tile_size) not in positions:
-                    positions.append(length - tile_size)
-            return positions
+            positions = list(range(0, max(length - tile_size + 1, 1), tile_size))
+            if (length > tile_size):
+                last_start = length - tile_size
+                if last_start not in positions:
+                    positions.append(last_start)
 
-        # boundary-covering tiles which improve continuity across tile edges.
-        def compute_offset_positions(length):
-            offset = tile_size // 2
-            positions = list(range(offset, length - tile_size + 1, tile_size))
-            if (length - tile_size) not in positions:
-                positions.append(length - tile_size)
             return positions
         
-        y_coords = compute_positions(h)
-        x_coords = compute_positions(w)
+        coords_y = compute_positions(h)
+        coords_x = compute_positions(w)
 
-        y_covers = []
-        x_covers = []
-        if (h > tile_size or w > tile_size):
-            y_covers = compute_offset_positions(h)
-            x_covers = compute_offset_positions(w)
+        offset = tile_size // 2
+        offset_positions_x = compute_positions(w)
+        offset_positions_y = compute_positions(h)
 
-        return (x_coords, y_coords), (x_covers, y_covers)
+        for y in offset_positions_y:
+            for x in offset_positions_x:
+                        offset_x = [x + offset for x in coords_x if x + offset + tile_size <= w]
+                        offset_y = [y + offset for y in coords_y if y + offset + tile_size <= h]
+
+        return (coords_x, coords_y), (offset_x, offset_y)
 
     def _split_input_list_from_range(self, input_points_list, input_labels_list, x_bound, y_bound):
         local_points_list = []
@@ -123,8 +121,8 @@ class TileManager:
         mask_combine = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
         for mask, tile in zip(combine_list, self.split_tile_list):
             bound = tile.get_start_coord()
-            cropped_mask = mask[:self.tile_size, :self.tile_size]
-            mask_combine[bound[1]: bound[1] + self.tile_size, bound[0]: bound[0] + self.tile_size] |= mask
+            h, w = mask.shape
+            mask_combine[bound[1]: bound[1] + h, bound[0]: bound[0] + w] |= mask
         
         return mask_combine
 

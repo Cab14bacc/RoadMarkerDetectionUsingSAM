@@ -2,11 +2,14 @@ import yaml
 import os
 
 class Config:
-    def __init__(self, config_path):
+    def __init__(self, config_path=None):
         self.config_path = config_path
         self.config = None
         if config_path is not None:
             self.config = self.load_config()
+
+    def set_config_with_dict(self, config_dict):
+        self.config = config_dict
 
     def load_config(self):
         if not os.path.exists(self.config_path):
@@ -17,7 +20,8 @@ class Config:
 
     def get(self, field=None):
         if field not in self.config:
-            raise KeyError(f"Field '{field}' not found in config file: {self.config_path}")
+            print(f"Field '{field}' not found in config file: {self.config_path}")
+            return None
         return self.config[field]
     
     def get_all_config(self):
@@ -28,4 +32,14 @@ class Config:
             return self.get('Predictor')['pixel_cm']
         else:
             return 1
+    
+    def get_threshold_from_usage(self, usage):
+        if (self.config is not None):
+            predict_config = self.get('Predictor')
+            usage_list = predict_config['usage_list']
+            if usage in usage_list:
+                index = usage_list.index(usage)
+                return predict_config['min_area_threshold'][index], predict_config['max_area_threshold'][index]
+        return 30000, 100
+            
 

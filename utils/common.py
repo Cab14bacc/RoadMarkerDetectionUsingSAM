@@ -5,6 +5,10 @@ import numpy as np
 from mapJson.mapObjData import MapJsonObj
 # input binary mask image.
 # ratio is the aspect ratio threshold to determine if the object is long and thin.
+
+def num_to_pixel_cm(num, pixel_cm):
+    return num / pixel_cm
+
 def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
     contours, _ = cv2.findContours(mask_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -21,7 +25,7 @@ def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
         # distanceTransform give half width
         max_thickness = dist.max() * 2
 
-        if max_thickness > 350/pixel_cm:
+        if max_thickness > 250/pixel_cm:
             return False
 
         # Bounding rectangle
@@ -48,11 +52,12 @@ def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
         count += 1
     return True
 
-def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5):
+def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_image, connectivity=8)
     keep_mask_flag = False
     # create same size zero like mask
     mask = np.zeros_like(mask_image, dtype=np.uint8)
+
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
 
@@ -64,9 +69,9 @@ def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5):
         dist = cv2.distanceTransform(temp_mask, cv2.DIST_L2, 5)
         # distanceTransform give half width
         max_thickness = dist.max() * 2
-        
-        if max_thickness > 350/pixel_cm:
-            print("max_thickness: ", max_thickness)
+        # if (index is not None):
+        #     print(f"{i}_max_thickness: {max_thickness}")
+        if max_thickness > 250/pixel_cm:
             continue
 
         # Bounding rectangle
@@ -88,6 +93,8 @@ def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5):
         # solidity = float(area) / hull_area if hull_area != 0 else 0
         
         # Check if the object is long and thin
+        # if (index is not None):
+        #     print(f"{i}_not line with min_aspect: {min_aspect_ratio}")
         if min_aspect_ratio < ratio:
             continue
         
