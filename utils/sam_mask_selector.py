@@ -17,8 +17,9 @@ class SAMMaskSelector:
     def use_default_config(self):
         config = { 
             'Predictor': {
-                'max_area_threshold': [250000, 750000],
-                'min_area_threshold': [0, 0],
+                'usage_list': ['default', 'square', 'yellow', 'arrow', 'line'],
+                'max_area_threshold': [30000, 1200000, 1200000, 55000, 41000],
+                'min_area_threshold': [100, 80000, 60000, 9000, 100],
                 'color_threshold': 120,
                 'pixel_cm': 1
             } 
@@ -27,12 +28,14 @@ class SAMMaskSelector:
         self.config.set_config_with_dict(config)
 
     def selector(self, mask, index, usage='default'):
-        if usage == 'default' or usage == 'yellow':
+        if usage == 'default':
             return self.default_selector(mask, index, usage)
         elif usage == 'line':
             return self.line_selector(mask, index, usage)
         elif usage == 'arrow': 
             return self.arrow_selector(mask, index, usage)
+        elif usage == 'square' or usage == 'yellow':
+            return self.square_selector(mask, index, usage)
         return False
     
     def default_selector(self, mask, index, usage='default'):
@@ -56,7 +59,49 @@ class SAMMaskSelector:
         
         return True
 
-    def arrow_selector(self, mask, index, usage='default'):
+    def square_selector(self, mask, index, usage='square'):
+        self.selected_mask = mask
+        pixel_cm = self.config.get_pixel_cm()
+        min_area_threshold, max_area_threshold = self.config.get_threshold_from_usage(usage)
+
+        min_area_threshold = min_area_threshold / pixel_cm / pixel_cm
+        max_area_threshold = max_area_threshold / pixel_cm / pixel_cm
+
+        # area_size = np.sum(mask)
+        # if ((area_size < min_area_threshold) or (area_size > max_area_threshold)):
+        #     return False
+        
+        result = np.zeros_like(mask, dtype=np.uint8)
+        mask_int = mask.astype(np.uint8) * 255
+
+        selected = False
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_int, connectivity=8)
+        for i in range(1, num_labels):
+            x, y, w, h, area = stats[i]
+            bounding_area = w * h
+
+            # filter out small components based on bounding box area size
+            if bounding_area < min_area_threshold:
+                #print(f"mask{index} bounding_area {bounding_area} larger or smaller than threshold, skip")
+                continue
+            # standard arrow size 500x250  add 20% error range
+            
+            if bounding_area > max_area_threshold:
+                #print(f"mask{index} bounding_area {bounding_area} larger or smaller than threshold, skip")
+                continue
+            
+            # skip line
+            ratio = max(w, h) / (min(w,h) + 1e-5)
+
+            if (ratio > 6):
+                continue
+
+            result[labels == i] = 1
+            selected = True
+        self.selected_mask = result
+        return selected
+
+    def arrow_selector(self, mask, index, usage='arrow'):
         pixel_cm = self.config.get_pixel_cm()
         min_area_threshold, max_area_threshold = self.config.get_threshold_from_usage(usage)
 
@@ -65,30 +110,34 @@ class SAMMaskSelector:
 
         area_size = np.sum(mask)
         if ((area_size < min_area_threshold) or (area_size > max_area_threshold)):
-            print(f"mask{index} area {area_size} larger or smaller than threshold, skip")
+            # print(f"mask{index} area {area_size} larger or smaller than threshold, skip")
             return False
         
         result = np.zeros_like(mask, dtype=np.uint8)
-        # connectedComponentsWithStats to separate mask into connected components
+
         mask_int = mask.astype(np.uint8) * 255
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_int, connectivity=8)
+
+        limit_side_length = common.num_to_pixel_cm(600, pixel_cm)
+        real_arrow_bound = common.num_to_pixel_cm(600, pixel_cm) * common.num_to_pixel_cm(300, pixel_cm)
+
         for i in range(1, num_labels):
             x, y, w, h, area = stats[i]
             bounding_area = w * h
             # filter out small components based on bounding box area size
             if bounding_area < min_area_threshold:
-                print(f"mask{index} bounding_area {bounding_area} larger or smaller than threshold, skip")
+                #print(f"mask{index} bounding_area {bounding_area} larger or smaller than threshold, skip")
                 continue
-            # standard arrow size 500x250  add 10% error range
-            real_arrow_bound = common.num_to_pixel_cm(550, pixel_cm) * common.num_to_pixel_cm(275, pixel_cm)
+            # standard arrow size 500x250  add 20% error range
+            
             if bounding_area > real_arrow_bound:
-                print(f"mask{index} bounding_area {bounding_area} larger or smaller than threshold, skip")
+                #print(f"mask{index} bounding_area {bounding_area} larger or smaller than threshold, skip")
                 continue
             
-            limit_side_length = common.num_to_pixel_cm(550, pixel_cm)
             if (w > limit_side_length or h > limit_side_length):
-                print(f"mask{index} width or height {max(w, h)} larger or smaller than threshold, skip")
+                #print(f"mask{index} width or height {max(w, h)} larger or smaller than threshold, skip")
                 continue
+            
             
             result[labels == i] = 1
 
@@ -96,7 +145,7 @@ class SAMMaskSelector:
 
         return True
 
-    def line_selector(self, mask, index, ratio=10, usage='default'):
+    def line_selector(self, mask, index, ratio=10, usage='line'):
         pixel_cm = self.config.get_pixel_cm()
 
         min_area_threshold, max_area_threshold = self.config.get_threshold_from_usage(usage)

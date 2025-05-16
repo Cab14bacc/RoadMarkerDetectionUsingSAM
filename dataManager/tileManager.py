@@ -44,8 +44,6 @@ class TileManager:
             for x_start in x_starts:
                 x_end = min(x_start + tile_size, w)
                 y_end = min(y_start + tile_size, h)
-                print(f"x start: {x_start}, end: {x_end}")
-                print(f"y start: {y_start}, end: {y_end}")
                 tile = image[y_start:y_end, x_start:x_end].copy()
                 local_points_list, local_labels_list = self._split_input_list_from_range(input_points_list, input_labels_list, [x_start, x_end], [y_start, y_end])
 

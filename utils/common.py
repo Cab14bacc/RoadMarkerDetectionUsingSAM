@@ -3,8 +3,6 @@ import os
 import yaml
 import numpy as np
 from mapJson.mapObjData import MapJsonObj
-# input binary mask image.
-# ratio is the aspect ratio threshold to determine if the object is long and thin.
 
 def num_to_pixel_cm(num, pixel_cm):
     return num / pixel_cm
@@ -25,7 +23,7 @@ def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
         # distanceTransform give half width
         max_thickness = dist.max() * 2
 
-        if max_thickness > 250/pixel_cm:
+        if not check_mask_is_line(mask, pixel_cm, 250):
             return False
 
         # Bounding rectangle
@@ -34,22 +32,27 @@ def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
         rect = cv2.minAreaRect(cnt)
         (center), (width, height), angle = rect
 
-        # # most of marker and line width smaller than 250cm 
-        # if (min(width, height) > 350/pixel_cm):
-        #     return False
-
         # aspect ratio
         min_aspect_ratio = max(width, height) / min(width, height) if min(width, height) != 0 else 0
-
-        # # Optional: Calculate solidity
-        # hull = cv2.convexHull(cnt)
-        # hull_area = cv2.contourArea(hull)
-        # solidity = float(area) / hull_area if hull_area != 0 else 0
         
         # Check if the object is long and thin
         if min_aspect_ratio < ratio:
             return False
         count += 1
+    return True
+
+def get_line_width(mask):
+    # measure thickness (distance to nearest background pixel)
+    dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+    # distanceTransform give half width
+    max_thickness = dist.max() * 2
+    return max_thickness
+
+def check_mask_is_line(mask, pixel_cm, thickness=50):
+    max_thickness = get_line_width(mask)
+    # according to most of the road line width, smaller than 50
+    if max_thickness > thickness/pixel_cm:
+        return False
     return True
 
 def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
@@ -65,13 +68,8 @@ def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
         temp_mask = np.zeros_like(mask_image, dtype=np.uint8)
         temp_mask[labels == i] = 255
 
-        # measure thickness (distance to nearest background pixel)
-        dist = cv2.distanceTransform(temp_mask, cv2.DIST_L2, 5)
-        # distanceTransform give half width
-        max_thickness = dist.max() * 2
-        # if (index is not None):
-        #     print(f"{i}_max_thickness: {max_thickness}")
-        if max_thickness > 250/pixel_cm:
+        # check line thickness
+        if not check_mask_is_line(temp_mask, pixel_cm):
             continue
 
         # Bounding rectangle
@@ -80,49 +78,30 @@ def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
         rect = cv2.minAreaRect(np.argwhere(labels == i))
         (center), (width, height), angle = rect
 
-        # # most of marker and line width smaller than 250cm 
-        # if (min(width, height) > 250/pixel_cm):
-        #     continue
-
         # aspect ratio
         min_aspect_ratio = max(width, height) / min(width, height) if min(width, height) != 0 else 0
 
-        # Optional: Calculate solidity
-        # hull = cv2.convexHull(np.argwhere(labels == i))
-        # hull_area = cv2.contourArea(hull)
-        # solidity = float(area) / hull_area if hull_area != 0 else 0
-        
-        # Check if the object is long and thin
-        # if (index is not None):
-        #     print(f"{i}_not line with min_aspect: {min_aspect_ratio}")
-        if min_aspect_ratio < ratio:
-            continue
-        
+        # if min_aspect_ratio < ratio:
+        #     continue
+
         keep_mask_flag = True
         mask[labels == i] = 1
     return keep_mask_flag, mask
 
 
 def clean_small_area_from_mask(mask, threshold=50):
-    # contour and connectedComponent seems to be the same result
-    # keep contour method for maybe future use on shape
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    keep_labels = np.zeros(num_labels, dtype=np.uint8)  # label 0 is background
 
-    # Apply connected components
-    # num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    # for i in range(1, num_labels):
-    #     x, y, w, h, area = stats[i]
-    #     if area < 100:  # filter out small blobs
-    #         mask[labels == i] = 0
-    # return mask
+    for i in range(1, num_labels):
+        x, y, w, h, area = stats[i]
+        if area >= threshold:
+            keep_labels[i] = 1
+            
+    filtered_mask = keep_labels[labels]
 
-    # Remove objects that are too small or have odd aspect ratios that don’t match typical road markers:
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        if area < threshold:  # filter out small blobs
-            cv2.drawContours(mask, [cnt], -1, 0, -1)
-
-    return mask
+    filtered_mask = (filtered_mask * 255).astype(np.uint8)
+    return filtered_mask
 
 def enhance_brightness_saturation(image_BGR):
 
@@ -160,60 +139,6 @@ def load_config(config_path, field=None):
         if field not in config:
             raise KeyError(f"Field '{field}' not found in config file: {config_path}")
         return config[field]
-
-# check mask shape is close to square and clean small size
-def square_shape_compare(mask, min_size_threshold=10000):
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # create a black image same size as image
-    height, width = mask.shape
-
-    black_image = np.zeros((height, width), dtype=np.uint8)
-
-    for i, contour in enumerate(contours):
-        # skip small area
-        area_size = cv2.contourArea(contour)
-        if area_size < min_size_threshold:
-            continue
-
-        peri = cv2.arcLength(contour, True)
-        approx = cv2.approxPolyDP(contour, 0.01 * peri, True)
-
-        # draw the contour and approx on the black image
-        if (approx.shape[0] == 4):
-            cv2.drawContours(black_image, [approx], -1, (255, 255, 255), thickness=cv2.FILLED)
-        
-        return black_image
-    return mask
-
-def close_color(pixel, color, threshold=100):
-    # calculate the distance between the pixel and the color
-    distance = np.sqrt(np.sum((color - pixel) ** 2))
-
-    # check if the distance is less than the threshold
-    if distance < threshold:
-        return True
-    else:
-        return False
-    
-def mask_most_of_color(image, mask, color, threshold=60, index=0):
-    # get the true value index in mask
-    ys, xs = np.where(mask)
-    # get the color value in image
-    color_value = image[ys, xs]
-
-    # create array with shape(len(xs))
-    color_mask = np.zeros(len(xs), dtype=bool)
-    # check if the color_value is close to color or not using common.close_color function, as boolean array
-    for i in range(len(xs)):
-        color_mask[i] = close_color(color_value[i], color, threshold=threshold)
-    
-    # more true value in color_mask return true, else false
-    if np.sum(color_mask) > (len(xs) / 10):
-        return True
-    else:
-        return False
-
 
 def build_map_json_obj(mask, index):
     # find bounding box of mask

@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import argparse
 import cv2
 import sys
@@ -18,20 +17,21 @@ import show_view, sam_use, common
 from sam_mask_selector import SAMMaskSelector
 from config import Config
 
-sys.path.append("./mapJson")
-from mapJson.mapJsonData import mapJsonData
-from mapJson.mapObjData import MapJsonObj
+# sys.path.append("./mapJson")
+# TODO: add custom map vector data
+# from mapJson.mapJsonData import mapJsonData
+# from mapJson.mapObjData import MapJsonObj
 
 from dataManager.tileManager import TileManager
 
 def predict_process(image, predictor, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None, index=None):
     mask_selector = SAMMaskSelector(config=config)
-
     save_flag = config.get(field='Predictor')['save_flag']
     # new a black image as mask combine result
     mask_combine = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
     keep_index_list = []
     keep_area_list = []
+    keep_bool_list = []
     map_obj_list = []
     
     for i in range(len(input_points_list)):
@@ -50,22 +50,21 @@ def predict_process(image, predictor, input_points_list, input_labels_list, usag
         #     show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
         # if mask white area larger or smaller than threshold, skip
         area_size = np.sum(masks[0])
-
+        keep_index_list.append(i)
+        keep_area_list.append(area_size)
         result_mask = masks[0]
         if save_flag and (save_mask_path is not None):
             sam_use.save_mask_index(result_mask, save_mask_path, index=i)
         if (not mask_selector.selector(masks[0], i, usage=usage)):
+            keep_bool_list.append(False)
             continue
-        
+
+        keep_bool_list.append(True)
         result_mask = mask_selector.get_selected_mask()
         if (usage == 'line'):
             if save_flag and save_line_path is not None:
                 sam_use.save_mask_index(result_mask, save_line_path, index=i)
 
-        
-
-        keep_index_list.append(i)
-        keep_area_list.append(area_size)
         # combine to mask_combine
         mask_combine = np.logical_or(mask_combine, result_mask)
         
@@ -79,7 +78,7 @@ def predict_process(image, predictor, input_points_list, input_labels_list, usag
     mask_combine = mask_combine.astype(np.uint8) * 255
     #mask_combine = common.clean_small_area_from_mask(mask_combine, threshold=100)
 
-    return mask_combine, keep_index_list, keep_area_list
+    return mask_combine, keep_index_list, keep_area_list, keep_bool_list
 
 def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config=None):
 
@@ -143,7 +142,7 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
             os.makedirs(local_mask_path, exist_ok=True)
 
         predictor.set_image(local_image)
-        mask_combine_image, keep_index_list, keep_area_list = predict_process(
+        mask_combine_image, keep_index_list, keep_area_list, keep_bool_list = predict_process(
             image=local_image,
             predictor=predictor,
             input_points_list=local_points_list,
@@ -158,7 +157,7 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
         if (save_flag):
             file_name = f"combine_{count}.png"
             cv2.imwrite(os.path.join(save_mask_path, file_name), mask_combine_image)
-            sam_use.save_keep_index_list(save_mask_path, keep_index_list, keep_area_list, f"keep_index_list_{count}.txt")
+            sam_use.save_keep_index_list(save_mask_path, keep_index_list, keep_area_list, keep_bool_list, f"keep_index_list_{count}.txt")
         count = count + 1
         end_predict_time = time.perf_counter()
         print(f'predict index{count - 1} time: {(end_predict_time - start_predict_time)} s')
@@ -189,20 +188,14 @@ def predict_each_separate_area(image_path, mask_path, output_path, max_area_thre
     else:
         image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    
+
     pixel_cm = config.get_pixel_cm()
     grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]))
     input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
 
-    # test reference: https://github.com/computa`tional-cell-analytics/micro-sam/blob/83997ff4a471cd2159fda4e26d1445f3be79eb08/micro_sam/prompt_based_segmentation.py#L115
-    # some times more noise
-    # input_points_list, input_labels_list = sam_use.compute_points_from_mask(mask_path, min_area_threshold=min_area_threshold)
-    # print("local_points_list: ", input_points_list)
-    # print("local labels list: ", input_labels_list)
-    # return
     predictor = sam_model_setting(config=config)
     predictor.set_image(image)
-    mask_combine, keep_index_list, keep_area_list = predict_process(
+    mask_combine, keep_index_list, keep_area_list, keep_bool_list = predict_process(
         image=image,
         input_points_list=input_points_list,
         input_labels_list=input_labels_list,
@@ -227,10 +220,10 @@ def predict_each_separate_area(image_path, mask_path, output_path, max_area_thre
     # map_json_data.save_to_json(save_path)
 
 def sam_model_setting(config=None):
-    sam_checkpoint = "./checkpoints/sam_vit_h_4b8939.pth"
+    sam_checkpoint = "./checkpoints/sam_vit_b_01ec64.pth"
     if config is not None:
         sam_checkpoint = config.get('Predictor')['checkpoint']
-    model_type = "vit_h"
+    model_type = "vit_b"
 
     device = "cuda"
 
@@ -252,6 +245,54 @@ def local_test():
     #crop_path = r'google_earth_test\sam_crop' # clean area 8000
     
     predict_each_separate_area(image_path, mask_path, crop_path)
+
+def run_folder():
+    folder = r"D:\GameLab\accident\datas\Xinsheng\0_05m\part2_ortho"
+
+    args = set_args()
+    config = None
+    config = Config(config_path=args.config)
+
+    usage = args.usage
+    usage_list = ['default', 'square', 'yellow', 'arrow', 'line']
+    color_dict = { 'default': 'default', 'yellow': 'yellow', 'arrow': 'white', 'line': 'default' }
+    if config is not None:
+        usage_list = config.get(field='Predictor')['usage_list']
+        if usage not in usage_list:
+            print(f"Usage {usage} not in {usage_list}, use default")
+            usage = 'default'
+    
+    if usage not in usage_list:
+        print(f"Usage {usage} not in {usage_list}, use default")
+        usage = 'default'
+    
+    color_usage = args.usage
+    if color_usage in color_dict:
+        color_usage = color_dict[color_usage]
+    print(f"usage {args.usage} map to {color_usage}")
+
+    folder_list = os.listdir(folder)
+    for i in range(len(folder_list)):
+        index = i + 1
+        image_folder = os.path.join(folder, f"ortho_{index}")
+        image_file = os.path.join(image_folder, f"ortho_{index}.tif")
+
+        mask_flag = False
+        filter = ColorFilter(image_file, image_folder, config=args.config, save_flag=True)
+
+        if args.exist_mask:
+            binary_mask = filter.load_existing_mask_binary(color_usage)
+            mask_flag = binary_mask is not None
+        
+        if not mask_flag:
+            binary_mask = filter.filter_color_mask(color_usage)
+            mask_flag = True
+        
+        print("start predict image...")
+
+        #predict_each_separate_area(args.image, binary_mask, args.output, usage=usage, config_path=args.config)
+        predict_each_sepatate_area_from_image_tile(image_file, binary_mask, image_folder, usage=usage, config=config)
+
 
 def set_args():
     parser = argparse.ArgumentParser()
@@ -286,6 +327,7 @@ def main():
 
     usage = args.usage
     usage_list = ['default', 'square', 'yellow', 'arrow', 'line']
+    color_dict = { 'default': 'default', 'yellow': 'yellow', 'arrow': 'white', 'line': 'default', 'square': 'default' }
     if config is not None:
         usage_list = config.get(field='Predictor')['usage_list']
         if usage not in usage_list:
@@ -296,17 +338,21 @@ def main():
         print(f"Usage {usage} not in {usage_list}, use default")
         usage = 'default'
     
+    color_usage = args.usage
+    if color_usage in color_dict:
+        color_usage = color_dict[color_usage]
+    print(f"usage {args.usage} map to {color_usage}")
+
     mask_flag = False
     
     filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True)
 
     if args.exist_mask:
-
-        binary_mask = filter.load_existing_mask_binary(args.usage)
+        binary_mask = filter.load_existing_mask_binary(color_usage)
         mask_flag = binary_mask is not None
     
     if not mask_flag:
-        binary_mask = filter.filter_color_mask(args.usage)
+        binary_mask = filter.filter_color_mask(color_usage)
         mask_flag = True
     
     print("start predict image...")

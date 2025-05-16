@@ -154,26 +154,19 @@ class ColorFilter:
         return target, label_image_list
     
     def _clean_small_area_from_mask(self, mask, threshold=50):
-        '''
-        # contour and connectedComponent seems to be the same result
-        # keep contour method for maybe future use on shape
 
-        # Apply connected components
-        # num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-        # for i in range(1, num_labels):
-        #     x, y, w, h, area = stats[i]
-        #     if area < 100:  # filter out small blobs
-        #         mask[labels == i] = 0
-        # return mask
-        '''
-        # Remove objects that are too small or have odd aspect ratios that don’t match typical road markers:
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area < threshold:
-                cv2.drawContours(mask, [cnt], -1, 0, -1)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        keep_labels = np.zeros(num_labels, dtype=np.uint8)  # label 0 is background
 
-        return mask
+        for i in range(1, num_labels):
+            x, y, w, h, area = stats[i]
+            if area >= threshold:
+                keep_labels[i] = 1
+                
+        filtered_mask = keep_labels[labels]
+
+        filtered_mask = (filtered_mask * 255).astype(np.uint8)
+        return filtered_mask
     
     def _set_config_param(self, config):
         if config is not None:
