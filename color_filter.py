@@ -5,13 +5,17 @@ import numpy as np
 import sys
 sys.path.append("./utils")
 import common
+from config import Config
 
 # filter out the color which not close to given color_list
 class ColorFilter:
     def __init__(self, input_path, output_path, 
-                 color_list=[[225, 225, 225], [112, 206, 244]], 
+                 color_list=[[225, 225, 225], [112, 206, 244]],
+                 color_label = ['white', 'yellow'],
                  color_threshold=80, area_threshold=50, 
-                 config=None, save_flag=False):
+                 pixel_cm=1,
+                 config=None, save_flag=False, 
+                 usage='default'):
         
         # init member variables
         self.input_path = input_path
@@ -21,14 +25,15 @@ class ColorFilter:
         self.area_threshold = area_threshold
         self.save_flag = save_flag
         self.color_label = []
+        self.pixel_cm = pixel_cm
         if config is not None:
-            self._set_config_param(config)
+            self._set_config_param(config, usage)
 
         self.image = None
         self.mask_color_image = None
         self.mask_binary_image = None
         self.label_image_list = None
-
+        
         # check input_path is file
         if not os.path.isfile(input_path):
             raise ValueError(f"Input path {input_path} is not a valid file.")
@@ -46,7 +51,7 @@ class ColorFilter:
 
         # Save the modified image
         if self.save_flag:
-            filename = self._get_color_mask_path()
+            filename = self.get_color_mask_path()
             cv2.imwrite(filename, self.mask_color_image)
 
         gray_image = cv2.cvtColor(self.mask_color_image, cv2.COLOR_BGR2GRAY)
@@ -107,7 +112,7 @@ class ColorFilter:
         # return the label image
         return self.label_image_list[index]
 
-    def _get_color_mask_path(self):
+    def get_color_mask_path(self):
         filename = os.path.join(self.output_path, 'filter_color.jpg')
         return filename
 
@@ -153,14 +158,14 @@ class ColorFilter:
         # return the thresholded image
         return target, label_image_list
     
-    def _clean_small_area_from_mask(self, mask, threshold=50):
+    def _clean_small_area_from_mask(self, mask, threshold=300):
 
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
         keep_labels = np.zeros(num_labels, dtype=np.uint8)  # label 0 is background
-
+        real_threshold = threshold / self.pixel_cm / self.pixel_cm
         for i in range(1, num_labels):
             x, y, w, h, area = stats[i]
-            if area >= threshold:
+            if area >= real_threshold:
                 keep_labels[i] = 1
                 
         filtered_mask = keep_labels[labels]
@@ -168,15 +173,25 @@ class ColorFilter:
         filtered_mask = (filtered_mask * 255).astype(np.uint8)
         return filtered_mask
     
-    def _set_config_param(self, config):
+    def _set_config_param(self, config, usage='default'):
         if config is not None:
             # load config file
-            config = common.load_config(config_path=config, field='ColorFilter')
-            self.color_list = config['color_list']
-            self.color_threshold = config['color_threshold']
-            self.area_threshold = config['area_threshold']
-            self.save_flag = config['save_flag']
-            self.color_label = config['color_label']
+            root_config = Config(config_path=config)
+            color_config = root_config.get('ColorFilter')
+            self.color_list = color_config['color_list']
+            self.color_threshold = color_config['color_threshold']
+
+            area_threshold_list = color_config['area_threshold']
+            usage_list = root_config.get(field='Common')['usage_list']
+            self.pixel_cm = root_config.get(field='Common')['pixel_cm']
+            if (usage not in usage_list):
+                self.area_threshold = area_threshold_list[0]
+            else:
+                self.area_threshold = area_threshold_list[usage_list.index(usage)]
+            print("self.area_threshold ", self.area_threshold )
+            self.save_flag = color_config['save_flag']
+            self.color_label = color_config['color_label']
+            
             print("color filter use config:", config)
 
 def set_args():

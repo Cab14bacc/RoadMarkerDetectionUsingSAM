@@ -109,7 +109,8 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     start_sample_time = time.perf_counter()
-    grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]))
+    sample_points_interval = config.get_sample_points_interval(usage)
+    grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]), int(sample_points_interval))
     input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
 
     end_sample_time = time.perf_counter()
@@ -166,6 +167,13 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
     mask_combine_image = Image.fromarray(result)  # Convert to 8-bit grayscale
     mask_combine_image.save(os.path.join(save_path, 'tile_combine.png'))  # Save as PNG with a unique name
 
+# TODO: run one large road tile data
+def predict_large_tile(image_path, output_path, config):
+    # create save folder
+    save_path = os.path.join(output_path, "test")
+    if (not os.path.exists(save_path)):
+        os.makedirs(save_path, exist_ok=True)
+
 def predict_each_separate_area(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config=None):
 
     # create save folder
@@ -190,7 +198,8 @@ def predict_each_separate_area(image_path, mask_path, output_path, max_area_thre
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     pixel_cm = config.get_pixel_cm()
-    grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]))
+    sample_points_interval = config.get_sample_points_interval(usage)
+    grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]), int(sample_points_interval))
     input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
 
     predictor = sam_model_setting(config=config)
@@ -329,14 +338,14 @@ def main():
     usage_list = ['default', 'square', 'yellow', 'arrow', 'line']
     color_dict = { 'default': 'default', 'yellow': 'yellow', 'arrow': 'white', 'line': 'default', 'square': 'default' }
     if config is not None:
-        usage_list = config.get(field='Predictor')['usage_list']
+        usage_list = config.get(field='Common')['usage_list']
         if usage not in usage_list:
             print(f"Usage {usage} not in {usage_list}, use default")
             usage = 'default'
-    
-    if usage not in usage_list:
-        print(f"Usage {usage} not in {usage_list}, use default")
-        usage = 'default'
+    else:
+        if usage not in usage_list:
+            print(f"Usage {usage} not in {usage_list}, use default")
+            usage = 'default'
     
     color_usage = args.usage
     if color_usage in color_dict:
@@ -345,8 +354,8 @@ def main():
 
     mask_flag = False
     
-    filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True)
-
+    filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True, usage=usage)
+    print("filter color usage:", color_usage)
     if args.exist_mask:
         binary_mask = filter.load_existing_mask_binary(color_usage)
         mask_flag = binary_mask is not None
@@ -357,8 +366,10 @@ def main():
     
     print("start predict image...")
 
+    color_mask_image = filter.get_color_mask_path()
     #predict_each_separate_area(args.image, binary_mask, args.output, usage=usage, config_path=args.config)
     predict_each_sepatate_area_from_image_tile(args.image, binary_mask, args.output, usage=usage, config=config)
+    #predict_each_sepatate_area_from_image_tile(color_mask_image, binary_mask, args.output, usage=usage, config=config)
 
 if __name__ == "__main__":
     #local_test()

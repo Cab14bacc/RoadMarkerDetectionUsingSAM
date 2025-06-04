@@ -16,12 +16,14 @@ class SAMMaskSelector:
 
     def use_default_config(self):
         config = { 
-            'Predictor': {
+            'Common':{
                 'usage_list': ['default', 'square', 'yellow', 'arrow', 'line'],
+                'pixel_cm': 1
+            },
+            'Predictor': {
                 'max_area_threshold': [30000, 1200000, 1200000, 55000, 41000],
                 'min_area_threshold': [100, 80000, 60000, 9000, 100],
-                'color_threshold': 120,
-                'pixel_cm': 1
+                'sample_points_interval': [32, 32, 32, 32, 64]
             } 
         }
         self.config = Config()
@@ -45,7 +47,6 @@ class SAMMaskSelector:
 
         min_area_threshold = min_area_threshold / pixel_cm / pixel_cm
         max_area_threshold = max_area_threshold / pixel_cm / pixel_cm
-
         area_size = np.sum(mask)
         if ((area_size < min_area_threshold) or (area_size > max_area_threshold)):
             # change from bool to int
@@ -158,7 +159,7 @@ class SAMMaskSelector:
         
         mask_int = mask.astype(np.uint8) * 255
 
-        keep_flag, result_mask = common.analyze_all_line_mask(mask_int, ratio=3, pixel_cm=pixel_cm, index=index)
+        keep_flag, result_mask = common.analyze_all_line_mask(mask_int, ratio=3, pixel_cm=pixel_cm, index=index, max_area_threshold=max_area_threshold, min_area_threshold=min_area_threshold)
         self.selected_mask = result_mask
         if (keep_flag):
             return True

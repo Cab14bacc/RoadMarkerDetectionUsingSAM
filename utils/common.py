@@ -55,7 +55,7 @@ def check_mask_is_line(mask, pixel_cm, thickness=50):
         return False
     return True
 
-def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
+def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None, max_area_threshold=41000, min_area_threshold=1000):
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_image, connectivity=8)
     keep_mask_flag = False
     # create same size zero like mask
@@ -63,13 +63,16 @@ def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
 
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
+        
+        if (area > max_area_threshold or area < min_area_threshold):
+            continue
 
         # draw the mask
         temp_mask = np.zeros_like(mask_image, dtype=np.uint8)
         temp_mask[labels == i] = 255
 
         # check line thickness
-        if not check_mask_is_line(temp_mask, pixel_cm):
+        if not check_mask_is_line(temp_mask, pixel_cm, 16):
             continue
 
         # Bounding rectangle
@@ -174,3 +177,18 @@ def find_boolean_mask_bounding(mask):
     min_x, max_x = int(min_x), int(max_x)
     min_y, max_y = int(min_y), int(max_y)
     return [min_x, min_y, max_x, max_y]
+
+def usage_mapping(usage, config=None):
+    color_dict = { 'default': 'default', 'yellow': 'yellow', 'arrow': 'white', 'line': 'default', 'square': 'default' }
+    if config is not None:
+        usage_list = config.get(field='Common')['usage_list']
+        if usage not in usage_list:
+            print(f"Usage {usage} not in {usage_list}, use default")
+            usage = 'default'
+    else:
+        usage_list = ['default', 'square', 'yellow', 'arrow', 'line']
+        if usage not in usage_list:
+            print(f"Usage {usage} not in {usage_list}, use default")
+            usage = 'default'
+    
+    return usage

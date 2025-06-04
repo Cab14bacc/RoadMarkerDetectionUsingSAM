@@ -2,11 +2,6 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
-import torch
-from segment_anything.utils.transforms import ResizeLongestSide
-from skimage.filters import gaussian
-from scipy.ndimage import distance_transform_edt
-from skimage.feature import peak_local_max
 import common
 
 def build_point_grid(n_per_side: int) -> np.ndarray:
@@ -28,10 +23,10 @@ def build_point_grid_xy(n_per_side_x: int, n_per_side_y: int) -> np.ndarray:
     points = np.stack([grid_x, grid_y], axis=-1).reshape(-1, 2)
     return points
 
-def build_point_grid_from_real_size(pixel_cm: int, width: int, height: int):
+def build_point_grid_from_real_size(pixel_cm: int, width: int, height: int, points_interval: int):
     # sample_len = min(width, height)
-    n_per_side_x = width * pixel_cm / 32
-    n_per_side_y = height * pixel_cm / 32
+    n_per_side_x = width * pixel_cm / points_interval
+    n_per_side_y = height * pixel_cm / points_interval
     # n_per_side = sample_len * pixel_cm / 32
     return build_point_grid_xy(int(n_per_side_x), int(n_per_side_y))
 
