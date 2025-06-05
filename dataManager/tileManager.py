@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 from .tileData import TileData
+from .tileManagerInterface import TileManagerInterface
 import os
 
 '''
@@ -13,21 +14,22 @@ init argument:
     input_labels_list: list of label set
     tile_size: split tile to each size
 '''
-class TileManager:
-    def __init__(self, source_image, input_points_list, input_labels_list, mask_path, tile_size=1024):
+class TileManager(TileManagerInterface):
+    def __init__(self, source_image, input_points_list, input_labels_list, tile_size=1024):
 
         self.source_tile = TileData(
             image=source_image,
             start_coord=[0, 0],
             input_points_list=input_points_list,
             input_labels_list=input_labels_list,
+            tile_size=tile_size
         )
         self.tile_size = tile_size
         self.split_tile_list = []
 
     def split_tile(self):
         h, w, _ = self.source_tile.get_image().shape
-        (x_coords, y_coords), (x_covers, y_covers) = self._compute_tile_position((h, w))
+        (x_coords, y_coords), (x_covers, y_covers) = self.split_tile_position(h, w)
 
         self.split_tile_list = []
 
@@ -53,35 +55,9 @@ class TileManager:
                         start_coord=[x_start, y_start],
                         input_points_list=local_points_list,
                         input_labels_list=local_labels_list,
+                        tile_size=tile_size
                     )
                     self.split_tile_list.append(tile_data)
-
-    def _compute_tile_position(self, shape):
-        h, w = shape
-        tile_size = self.tile_size
-
-        def compute_positions(length):
-            positions = list(range(0, max(length - tile_size + 1, 1), tile_size))
-            if (length > tile_size):
-                last_start = length - tile_size
-                if last_start not in positions:
-                    positions.append(last_start)
-
-            return positions
-        
-        coords_y = compute_positions(h)
-        coords_x = compute_positions(w)
-
-        offset = tile_size // 2
-        offset_positions_x = compute_positions(w)
-        offset_positions_y = compute_positions(h)
-
-        for y in offset_positions_y:
-            for x in offset_positions_x:
-                        offset_x = [x + offset for x in coords_x if x + offset + tile_size <= w]
-                        offset_y = [y + offset for y in coords_y if y + offset + tile_size <= h]
-
-        return (coords_x, coords_y), (offset_x, offset_y)
 
     def _split_input_list_from_range(self, input_points_list, input_labels_list, x_bound, y_bound):
         local_points_list = []

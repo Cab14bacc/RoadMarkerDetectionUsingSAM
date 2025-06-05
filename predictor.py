@@ -23,6 +23,7 @@ from config import Config
 # from mapJson.mapObjData import MapJsonObj
 
 from dataManager.tileManager import TileManager
+from dataManager.bigTiffManager import BigTiffManager
 
 def predict_process(image, predictor, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None, index=None):
     mask_selector = SAMMaskSelector(config=config)
@@ -111,7 +112,7 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
     start_sample_time = time.perf_counter()
     sample_points_interval = config.get_sample_points_interval(usage)
     grids = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]), int(sample_points_interval))
-    input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids, sample_outside=False)
+    input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask_path, min_area_threshold=min_area_threshold, grids=grids)
 
     end_sample_time = time.perf_counter()
     print('sample points time: %f s' % (end_sample_time - start_sample_time))
@@ -168,11 +169,57 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
     mask_combine_image.save(os.path.join(save_path, 'tile_combine.png'))  # Save as PNG with a unique name
 
 # TODO: run one large road tile data
-def predict_large_tile(image_path, output_path, config):
+def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='default', color_usage='all', config=None):
     # create save folder
-    save_path = os.path.join(output_path, "test")
-    if (not os.path.exists(save_path)):
-        os.makedirs(save_path, exist_ok=True)
+    save_flag = False
+    pixel_cm = config.get_pixel_cm()
+    save_path = os.path.join(output_path, usage)
+    sample_points_interval = config.get_sample_points_interval(usage)
+
+    tile_manager = BigTiffManager(image_path, output_path, min_area_threshold=min_area_threshold, 
+                                  pixel_cm=pixel_cm, sample_points_interval=sample_points_interval,
+                                  grids_function=sam_use.build_point_grid_from_real_size,
+                                  sample_function=sam_use.sample_grid_from_mask,
+                                  usage=usage, config=config, tile_size=1024)
+
+    x_coords, y_coords = tile_manager.get_split_tile_coords()
+
+    predictor = sam_model_setting(config=config)
+    # for loop zip x y and index
+    for i, (x_start, y_start) in enumerate(zip(x_coords, y_coords)):
+        # get image tile
+        image = tile_manager.get_image_tile(y_start, x_start)
+
+        # if image all pixel is zero, skip
+        if (image is None or np.sum(image) == 0):
+            print(f"image {i} is empty, skip")
+            continue
+
+        # filter color mask
+        color_filter = ColorFilter(image, output_path, pixel_cm=pixel_cm, config=config, usage=color_usage)
+        mask = color_filter.filter_color_mask(color_usage)
+
+        # sample points from mask
+        h, w, _ = image.shape
+        points_grid = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]), int(sample_points_interval))
+        input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask, min_area_threshold=min_area_threshold, grids=points_grid)
+        
+        # predict sam result
+        predictor.set_image(image)
+        mask_combine_image, keep_index_list, keep_area_list, keep_bool_list = predict_process(
+            image=image,
+            predictor=predictor,
+            input_points_list=input_points_list,
+            input_labels_list=input_labels_list,
+            usage=usage,
+            config=config,
+            save_mask_path=None,
+        )
+        file_name = f"combine_{i}.png"
+        cv2.imwrite(os.path.join(output_path, file_name), mask_combine_image)
+        file_name = f"original_{i}.png"
+        cv2.imwrite(os.path.join(output_path, file_name), image)
+
 
 def predict_each_separate_area(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config=None):
 
@@ -310,6 +357,7 @@ def set_args():
     parser.add_argument('--config', '-c', type=str, help='Path to the config file', default=None)
     parser.add_argument('--exist_mask', action='store_true', help='Use exist mask to predict')
     parser.add_argument('--usage', type=str, help='Usage of the script', default='default')
+    parser.add_argument('--bigtiff', action='store_true', help='Use big tiff manager to predict')
     args = parser.parse_args()
     return args
 
@@ -354,22 +402,25 @@ def main():
 
     mask_flag = False
     
-    filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True, usage=usage)
-    print("filter color usage:", color_usage)
-    if args.exist_mask:
-        binary_mask = filter.load_existing_mask_binary(color_usage)
-        mask_flag = binary_mask is not None
-    
-    if not mask_flag:
-        binary_mask = filter.filter_color_mask(color_usage)
-        mask_flag = True
-    
     print("start predict image...")
 
-    color_mask_image = filter.get_color_mask_path()
-    #predict_each_separate_area(args.image, binary_mask, args.output, usage=usage, config_path=args.config)
-    predict_each_sepatate_area_from_image_tile(args.image, binary_mask, args.output, usage=usage, config=config)
-    #predict_each_sepatate_area_from_image_tile(color_mask_image, binary_mask, args.output, usage=usage, config=config)
+    if (not args.bigtiff):
+        filter = ColorFilter(args.image, args.output, config=args.config, save_flag=True, usage=usage)
+        print("filter color usage:", color_usage)
+        if args.exist_mask:
+            binary_mask = filter.load_existing_mask_binary(color_usage)
+            mask_flag = binary_mask is not None
+        
+        if not mask_flag:
+            binary_mask = filter.filter_color_mask(color_usage)
+            mask_flag = True
+        predict_each_sepatate_area_from_image_tile(args.image, binary_mask, args.output, usage=usage, config=config)
+        #predict_each_separate_area(args.image, binary_mask, args.output, usage=usage, config_path=args.config)
+    else:
+        predict_large_tile(args.image, args.output, min_area_threshold=0, usage=usage, color_usage=color_usage, config=config)
+    
+    # color_mask_image = filter.get_color_mask_path()
+    # predict_each_sepatate_area_from_image_tile(color_mask_image, binary_mask, args.output, usage=usage, config=config)
 
 if __name__ == "__main__":
     #local_test()

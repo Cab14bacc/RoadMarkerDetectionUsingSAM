@@ -163,6 +163,20 @@ def build_map_json_obj(mask, index):
     map_json_obj = MapJsonObj(label=str(label), bbox=bbox, mask=mask_bbox)
     return map_json_obj.to_dict()
 
+def binary_mask_to_array(mask):
+    """
+    Convert a binary mask (numpy array) to a list of coordinates where the mask is True.
+    The output is a list of tuples (x, y) representing the coordinates of the True values in the mask.
+    """
+    if not isinstance(mask, np.ndarray):
+        raise ValueError("Input mask must be a numpy array.")
+    
+    if mask.ndim != 2:
+        raise ValueError("Input mask must be a 2D binary mask.")
+
+    ys, xs = np.where(mask)
+    return [(int(x), int(y)) for x, y in zip(xs, ys)]
+
 def find_boolean_mask_bounding(mask):
     # Get indices where mask is True
     ys, xs = np.where(mask)

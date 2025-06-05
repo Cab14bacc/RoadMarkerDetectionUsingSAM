@@ -34,16 +34,23 @@ class ColorFilter:
         self.mask_binary_image = None
         self.label_image_list = None
         
-        # check input_path is file
-        if not os.path.isfile(input_path):
-            raise ValueError(f"Input path {input_path} is not a valid file.")
-        
-        self.image = cv2.imread(input_path)  # Load in grayscale
+        self.check_input_image(input_path)
         self.image = common.enhance_brightness_saturation(self.image)
         cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
 
         if self.image is None:
             raise ValueError(f"Could not read image from {input_path}. Check the file path and format.")
+
+    def check_input_image(self, input_path):
+        if isinstance(input_path, str):
+            # check input_path is file
+            if not os.path.isfile(input_path):
+                raise ValueError(f"Input path {input_path} is not a valid file.")
+            self.image = cv2.imread(input_path)  # Load in grayscale
+        elif isinstance(input_path, np.ndarray):
+            self.image = input_path
+        else:
+            raise TypeError("mask_image should be either a file path or a numpy array")
 
     def filter_color_mask(self, color_str='all'):
         # Apply color filter
@@ -176,7 +183,11 @@ class ColorFilter:
     def _set_config_param(self, config, usage='default'):
         if config is not None:
             # load config file
-            root_config = Config(config_path=config)
+            # check if config is instance of Config
+            if isinstance(config, Config):
+                root_config = config
+            else:
+                root_config = Config(config_path=config)
             color_config = root_config.get('ColorFilter')
             self.color_list = color_config['color_list']
             self.color_threshold = color_config['color_threshold']
