@@ -178,6 +178,8 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
     save_flag = False
     pixel_cm = config.get_pixel_cm()
     save_path = os.path.join(output_path, usage)
+    if (not os.path.exists(save_path)):
+        os.mkdir(save_path)
     sample_points_interval = config.get_sample_points_interval(usage)
     
     start_coordinate = (0, 0)
@@ -203,7 +205,7 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
 
     # pass to segment anything and get the result as mask pixel coordinates
     predictor = sam_model_setting(config=config)
-    base_tile_path = os.path.join(output_path, 'base_tile')
+    base_tile_path = os.path.join(save_path, 'base_tile')
     if (not os.path.exists(base_tile_path)):
         os.mkdir(base_tile_path)
 
@@ -214,8 +216,8 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
                                     min_area_threshold=min_area_threshold,
                                     color_usage=color_usage,
                                     sample_points_interval=sample_points_interval,
-                                    save_flag=True)
-    overlap_path = os.path.join(output_path, 'overlap_tile')
+                                    save_flag=False)
+    overlap_path = os.path.join(save_path, 'overlap_tile')
     if (not os.path.exists(overlap_path)):
         os.mkdir(overlap_path)
     coordinate_covers_set = large_tile_seg(tile_manager=tile_manager, 
@@ -225,7 +227,7 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
                                 min_area_threshold=min_area_threshold,
                                 color_usage=color_usage,
                                 sample_points_interval=sample_points_interval,
-                                save_flag=True)
+                                save_flag=False)
     
     # all mask pixel coordinates
     coordinate_set.update(coordinate_covers_set)
@@ -233,13 +235,13 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
     connected_components = common.connected_components_from_coordinates(coordinate_set)
 
     json_data = MapJsonData(components=connected_components, start_coordinate=start_coordinate, original_shape=tile_manager.get_shape()[:2])
-    json_data.save_to_file(os.path.join(output_path, "map_data.json"))
+    json_data.save_to_file(os.path.join(save_path, "map_data.json"))
 
     height, width, channels = tile_manager.get_shape()
     mask = common.connected_components_to_scaled_mask(connected_components, [height, width], scaled=0.1)
 
     # imwrtie mask
-    cv2.imwrite(os.path.join(output_path, "tile_result.png"), mask)
+    cv2.imwrite(os.path.join(save_path, "tile_result.png"), mask)
 
 
 def large_tile_seg(tile_manager, x_coords, y_coords, predictor, usage, config, output_path, pixel_cm, min_area_threshold, color_usage, sample_points_interval, save_flag=False):

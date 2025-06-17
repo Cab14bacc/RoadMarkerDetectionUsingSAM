@@ -13,7 +13,13 @@ class MapJsonData:
         ]
 
     def to_json_dict(self):
-        merged = {'info':{'start_coordinate': self.start_coordinate, 'shape':self.original_shape}}
+        merged = { 
+            'info':
+            {
+                'start_coordinate': self.start_coordinate, 
+                'shape':self.original_shape
+            }
+        }
         for label in self.labels:
             merged.update(label)
         return merged
@@ -23,7 +29,7 @@ class MapJsonData:
             json.dump(self.to_json_dict(), f)
 
     @classmethod
-    def from_json_dict(cls, filepath):
+    def from_file(cls, filepath):
         
         with open(filepath, "r") as f:
             json_data = json.load(f)
@@ -44,4 +50,4 @@ class MapJsonData:
         return {label.name: label for label in self.labels}
 
     def get_components_list(self):
-        return [label.component for label in self.labels]
+        return self.components
