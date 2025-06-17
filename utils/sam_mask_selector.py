@@ -3,7 +3,8 @@ import numpy as np
 import cv2
 
 import common
-from config import Config
+
+from predictorConfig import PredictorConfig
 
 class SAMMaskSelector:
     def __init__(self, config):
@@ -26,7 +27,7 @@ class SAMMaskSelector:
                 'sample_points_interval': [32, 32, 32, 32, 64]
             } 
         }
-        self.config = Config()
+        self.config = PredictorConfig()
         self.config.set_config_with_dict(config)
 
     def selector(self, mask, index, usage='default'):

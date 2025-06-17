@@ -35,13 +35,9 @@ class TileManagerInterface:
         coords_x = compute_positions(w)
 
         offset = tile_size // 2
-        offset_positions_x = compute_positions(w)
-        offset_positions_y = compute_positions(h)
 
-        for y in offset_positions_y:
-            for x in offset_positions_x:
-                        offset_x = [x + offset for x in coords_x if x + offset + tile_size <= w]
-                        offset_y = [y + offset for y in coords_y if y + offset + tile_size <= h]
+        offset_x = [x + offset for x in coords_x if x + offset + tile_size <= w]
+        offset_y = [y + offset for y in coords_y if y + offset + tile_size <= h]
+
 
         return (coords_x, coords_y), (offset_x, offset_y)
-

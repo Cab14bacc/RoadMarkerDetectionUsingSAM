@@ -5,7 +5,7 @@ import numpy as np
 import sys
 sys.path.append("./utils")
 import common
-from config import Config
+from predictorConfig import PredictorConfig
 
 # filter out the color which not close to given color_list
 class ColorFilter:
@@ -35,8 +35,9 @@ class ColorFilter:
         self.label_image_list = None
         
         self.check_input_image(input_path)
-        self.image = common.enhance_brightness_saturation(self.image)
-        cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
+        #self.image = common.enhance_brightness_saturation(self.image)
+        if (save_flag):
+            cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
 
         if self.image is None:
             raise ValueError(f"Could not read image from {input_path}. Check the file path and format.")
@@ -184,10 +185,10 @@ class ColorFilter:
         if config is not None:
             # load config file
             # check if config is instance of Config
-            if isinstance(config, Config):
+            if isinstance(config, PredictorConfig):
                 root_config = config
             else:
-                root_config = Config(config_path=config)
+                root_config = PredictorConfig(config_path=config)
             color_config = root_config.get('ColorFilter')
             self.color_list = color_config['color_list']
             self.color_threshold = color_config['color_threshold']

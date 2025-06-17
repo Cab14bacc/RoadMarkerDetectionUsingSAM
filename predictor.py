@@ -15,7 +15,8 @@ from segment_anything import sam_model_registry, SamPredictor
 sys.path.append("./utils")
 import show_view, sam_use, common
 from sam_mask_selector import SAMMaskSelector
-from config import Config
+from predictorConfig import PredictorConfig
+from tiffLoader import TiffLoader
 
 # sys.path.append("./mapJson")
 # TODO: add custom map vector data
@@ -24,6 +25,7 @@ from config import Config
 
 from dataManager.tileManager import TileManager
 from dataManager.bigTiffManager import BigTiffManager
+from dataManager.mapJsonData import MapJsonData
 
 def predict_process(image, predictor, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None, index=None):
     mask_selector = SAMMaskSelector(config=config)
@@ -50,6 +52,7 @@ def predict_process(image, predictor, input_points_list, input_labels_list, usag
         # if (i == 145):
         #     show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
         # if mask white area larger or smaller than threshold, skip
+        # show_view.show_mask_with_point(image, masks, scores, input_point, input_label)
         area_size = np.sum(masks[0])
         keep_index_list.append(i)
         keep_area_list.append(area_size)
@@ -59,7 +62,7 @@ def predict_process(image, predictor, input_points_list, input_labels_list, usag
         if (not mask_selector.selector(masks[0], i, usage=usage)):
             keep_bool_list.append(False)
             continue
-
+        
         keep_bool_list.append(True)
         result_mask = mask_selector.get_selected_mask()
         if (usage == 'line'):
@@ -103,7 +106,9 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
         
     
     enhance_image_path = os.path.join(os.path.dirname(image_path), "enhanced_image.jpg")
-    if os.path.isfile(enhance_image_path):
+    if (isinstance(image_path, np.ndarray)):
+        image = image_path
+    elif os.path.isfile(enhance_image_path):
         image = cv2.imread(enhance_image_path)
     else:
         image = cv2.imread(image_path)
@@ -121,7 +126,6 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
         source_image=image,
         input_points_list=input_points_list,
         input_labels_list=input_labels_list,
-        mask_path=mask_path
     )
     
     tileManager.split_tile()
@@ -175,17 +179,71 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
     pixel_cm = config.get_pixel_cm()
     save_path = os.path.join(output_path, usage)
     sample_points_interval = config.get_sample_points_interval(usage)
+    
+    start_coordinate = (0, 0)
+    coordinate_system = 'TWD97'
+    pixel_scaling = (0.01, 0.01)
 
-    tile_manager = BigTiffManager(image_path, output_path, min_area_threshold=min_area_threshold, 
-                                  pixel_cm=pixel_cm, sample_points_interval=sample_points_interval,
-                                  grids_function=sam_use.build_point_grid_from_real_size,
-                                  sample_function=sam_use.sample_grid_from_mask,
-                                  usage=usage, config=config, tile_size=1024)
+    # check extension is tiff
+    if image_path.lower().endswith(('.tif', '.tiff')):
+        tiffLoader = TiffLoader(image_path)
+        start_coordinate = tiffLoader.get_start_coordinate()
+        coordinate_system = tiffLoader.get_coordinate_system()
+        pixel_scale = tiffLoader.get_pixel_scale()
+        print("tiff info:")
+        print(f"start coordinate: {start_coordinate}")
+        print(f"coordinate system: {coordinate_system}")
+        print(f"pixel scale: {pixel_scale}")
 
-    x_coords, y_coords = tile_manager.get_split_tile_coords()
+    # split large tile to small tile set
+    tile_manager = BigTiffManager(image_path, output_path, tile_size=1024)
 
+    # get each tile starting coordinates
+    x_coords, y_coords, x_covers, y_covers = tile_manager.get_split_tile_coords()
+
+    # pass to segment anything and get the result as mask pixel coordinates
     predictor = sam_model_setting(config=config)
-    # for loop zip x y and index
+    base_tile_path = os.path.join(output_path, 'base_tile')
+    if (not os.path.exists(base_tile_path)):
+        os.mkdir(base_tile_path)
+
+    coordinate_set = large_tile_seg(tile_manager=tile_manager, 
+                                    x_coords=x_coords, y_coords=y_coords,
+                                    predictor=predictor, usage=usage, config=config,
+                                    output_path=base_tile_path, pixel_cm=pixel_cm,
+                                    min_area_threshold=min_area_threshold,
+                                    color_usage=color_usage,
+                                    sample_points_interval=sample_points_interval,
+                                    save_flag=True)
+    overlap_path = os.path.join(output_path, 'overlap_tile')
+    if (not os.path.exists(overlap_path)):
+        os.mkdir(overlap_path)
+    coordinate_covers_set = large_tile_seg(tile_manager=tile_manager, 
+                                x_coords=x_covers, y_coords=y_covers,
+                                predictor=predictor, usage=usage, config=config,
+                                output_path=overlap_path, pixel_cm=pixel_cm,
+                                min_area_threshold=min_area_threshold,
+                                color_usage=color_usage,
+                                sample_points_interval=sample_points_interval,
+                                save_flag=True)
+    
+    # all mask pixel coordinates
+    coordinate_set.update(coordinate_covers_set)
+
+    connected_components = common.connected_components_from_coordinates(coordinate_set)
+
+    json_data = MapJsonData(components=connected_components, start_coordinate=start_coordinate, original_shape=tile_manager.get_shape()[:2])
+    json_data.save_to_file(os.path.join(output_path, "map_data.json"))
+
+    height, width, channels = tile_manager.get_shape()
+    mask = common.connected_components_to_scaled_mask(connected_components, [height, width], scaled=0.1)
+
+    # imwrtie mask
+    cv2.imwrite(os.path.join(output_path, "tile_result.png"), mask)
+
+
+def large_tile_seg(tile_manager, x_coords, y_coords, predictor, usage, config, output_path, pixel_cm, min_area_threshold, color_usage, sample_points_interval, save_flag=False):
+    coordinate_set = set()
     for i, (x_start, y_start) in enumerate(zip(x_coords, y_coords)):
         # get image tile
         image = tile_manager.get_image_tile(y_start, x_start)
@@ -203,7 +261,7 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
         h, w, _ = image.shape
         points_grid = sam_use.build_point_grid_from_real_size(int(pixel_cm), int(image.shape[1]), int(image.shape[0]), int(sample_points_interval))
         input_points_list, input_labels_list = sam_use.sample_grid_from_mask(mask, min_area_threshold=min_area_threshold, grids=points_grid)
-        
+
         # predict sam result
         predictor.set_image(image)
         mask_combine_image, keep_index_list, keep_area_list, keep_bool_list = predict_process(
@@ -215,11 +273,16 @@ def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='def
             config=config,
             save_mask_path=None,
         )
-        file_name = f"combine_{i}.png"
-        cv2.imwrite(os.path.join(output_path, file_name), mask_combine_image)
-        file_name = f"original_{i}.png"
-        cv2.imwrite(os.path.join(output_path, file_name), image)
 
+        ys, xs = np.nonzero(mask_combine_image)
+        coordinate_set.update((x + x_start, y + y_start) for x, y in zip(xs, ys))
+
+        if (save_flag):
+            file_name = f"combine_{i}.png"
+            cv2.imwrite(os.path.join(output_path, file_name), mask_combine_image)
+            file_name = f"original_{i}.png"
+            cv2.imwrite(os.path.join(output_path, file_name), image)
+    return coordinate_set
 
 def predict_each_separate_area(image_path, mask_path, output_path, max_area_threshold=10000, min_area_threshold=0, usage='default', config=None):
 
@@ -307,7 +370,7 @@ def run_folder():
 
     args = set_args()
     config = None
-    config = Config(config_path=args.config)
+    config = PredictorConfig(config_path=args.config)
 
     usage = args.usage
     usage_list = ['default', 'square', 'yellow', 'arrow', 'line']
@@ -373,14 +436,14 @@ def set_args_mask_from_file():
 def main_mask_from_file():
     args = set_args_mask_from_file()
     config = None
-    config = Config(config_path=args.config)
+    config = PredictorConfig(config_path=args.config)
     predict_each_separate_area(args.image, args.mask, args.output, config=config)
 
 def main():
     
     args = set_args()
     config = None
-    config = Config(config_path=args.config)
+    config = PredictorConfig(config_path=args.config)
 
     usage = args.usage
     usage_list = ['default', 'square', 'yellow', 'arrow', 'line']

@@ -206,3 +206,51 @@ def usage_mapping(usage, config=None):
             usage = 'default'
     
     return usage
+
+def connected_components_from_coordinates(coordinate_set, connectivity=8):
+    from collections import deque
+
+    visited_points = set()
+    connected_components = []
+
+    neighbors_list = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    if connectivity == 8:
+        neighbors_list += [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+    
+    for point in coordinate_set:
+        if point in visited_points:
+            continue
+        
+        component = []
+        queue = deque([point])
+        visited_points.add(point)
+
+        while queue:
+            current_point = queue.popleft()
+            component.append(current_point)
+
+            x, y = current_point
+            for dx, dy in neighbors_list:
+                neighbors_point = (x + dx, y + dy)
+                if neighbors_point in coordinate_set and neighbors_point not in visited_points:
+                    visited_points.add(neighbors_point)
+                    queue.append(neighbors_point)
+
+        connected_components.append(component)
+    return connected_components
+
+def connected_components_to_scaled_mask(connected_components, original_shape, scaled):
+    height, width = original_shape
+    height = height * scaled
+    width = width * scaled
+    mask = np.zeros((int(height), int(width)), dtype=np.uint8)
+
+    original_height, original_width = original_shape
+    for component in connected_components:
+        for point in component:
+            x, y = point
+            
+            mask[int(y/original_height * height), int(x/original_width * width)] = 1
+    
+    return mask.astype(np.uint8) * 255
+    

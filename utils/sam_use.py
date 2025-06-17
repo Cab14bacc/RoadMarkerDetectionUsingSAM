@@ -74,7 +74,7 @@ def build_point_grid_in_crop_mask(n_per_side: int, mask_array: np.ndarray, offse
     filtered_pixel_points = pixel_points[valid_mask]
     mask_values = mask_array[y_crop, x_crop]
     
-    result = filtered_pixel_points[mask_values == 255]
+    result = filtered_pixel_points[mask_values > 0]
     
     return np.array(result)
 
@@ -97,14 +97,16 @@ def sample_grid_from_mask(mask_image, min_area_threshold=10000, grids=None, samp
          
         component_mask = (labels[y:y+h, x:x+w] == i).astype(np.uint8) * 255
         input_points = build_point_grid_in_crop_mask(128, component_mask, (y, x), grids, original_size=(original_height, original_width))
-
+        
         input_labels = np.ones(input_points.shape[0], dtype=int)  # Foreground
 
         if input_points.shape[0] == 0:
+            continue
             # sample point at the nearest centroid of the mask where mask value is 255 
             cx, cy = find_centroid_in_white(component_mask)
             input_points = np.array([[cx, cy]])
             input_labels = np.array([1])
+            
 
         # append input points and labels to list
         input_points_list.append(input_points)
