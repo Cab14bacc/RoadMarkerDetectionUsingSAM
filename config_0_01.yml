@@ -1,0 +1,17 @@
+Common:
+  pixel_cm: 1
+  usage_list: ['default', 'square', 'yellow', 'arrow', 'line']
+
+ColorFilter:
+  color_list: [[225, 225, 225], [112, 206, 244]]
+  color_label: ['white', 'yellow']
+  area_threshold: [100, 300, 1000, 300, 1500]
+  color_threshold: 120
+  save_flag: true
+
+Predictor:
+  checkpoint: './checkpoints/sam_vit_b_01ec64.pth'
+  max_area_threshold: [30000, 750000, 750000, 55000, 41000]
+  min_area_threshold: [100, 100, 6000, 9000, 600]
+  sample_points_interval: [32, 32, 32, 32, 32]
+  save_flag: True
