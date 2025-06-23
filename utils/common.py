@@ -253,4 +253,15 @@ def connected_components_to_scaled_mask(connected_components, original_shape, sc
             mask[int(y/original_height * height), int(x/original_width * width)] = 1
     
     return mask.astype(np.uint8) * 255
-    
+
+def get_image(input_path):
+    if isinstance(input_path, str):
+        # check input_path is file
+        if not os.path.isfile(input_path):
+            raise ValueError(f"Input path {input_path} is not a valid file.")
+        image = cv2.imread(input_path)  # Load in grayscale
+    elif isinstance(input_path, np.ndarray):
+        image = input_path
+    else:
+        raise TypeError("mask_image should be either a file path or a numpy array")
+    return image
