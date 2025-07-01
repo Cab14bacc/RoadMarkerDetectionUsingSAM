@@ -423,6 +423,7 @@ def set_args():
     parser.add_argument('--exist_mask', action='store_true', help='Use exist mask to predict')
     parser.add_argument('--usage', type=str, help='Usage of the script', default='default')
     parser.add_argument('--bigtiff', action='store_true', help='Use big tiff manager to predict')
+    parser.add_argument('--save_log')
     args = parser.parse_args()
     return args
 

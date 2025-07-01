@@ -1,4 +1,5 @@
 import json
+import numpy as np
 
 class MapJsonData:
     def __init__(self, components, start_coordinate, original_shape, bbox_list=None):
@@ -60,8 +61,8 @@ class MapJsonData:
         for i, component in enumerate(self.components):
             xs = [pt[0] for pt in component]
             ys = [pt[1] for pt in component]
-            min_x, max_x = min(xs), max(xs)
-            min_y, max_y = min(ys), max(ys)
+            min_x, max_x = np.min(xs), np.max(xs)
+            min_y, max_y = np.min(ys), np.max(ys)
             bbox = [min_x, min_y, max_x, max_y]
             self.bbox_list.append(bbox)
 
@@ -76,3 +77,7 @@ class MapJsonData:
     
     def get_bbox_list(self):
         return self.bbox_list
+    
+    # shape: height, width
+    def get_shape(self):
+        return self.original_shape

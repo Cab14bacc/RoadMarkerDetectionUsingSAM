@@ -249,8 +249,9 @@ def connected_components_to_scaled_mask(connected_components, original_shape, sc
     for component in connected_components:
         for point in component:
             x, y = point
-            
-            mask[int(y/original_height * height), int(x/original_width * width)] = 1
+            result_height = min(int(y/original_height * height), height - 1)
+            result_width = min(int(x/original_width * width), width - 1)
+            mask[int(result_height), int(result_width)] = 1
     
     return mask.astype(np.uint8) * 255
 

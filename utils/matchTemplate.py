@@ -100,7 +100,7 @@ def match_template_all_rotation(image, template_path, output_path, scale_height=
         match_count += 1
         # cv2.rectangle(img_rgb, (x1, y1), (x2, y2), (0, 0, 255), 2)
     
-    result_image = np.zeros_like(img_rgb)
+    result_image = np.zeros_like(img_gray)
 
     # crop according to the boxes
     cropped_images = []
@@ -122,6 +122,7 @@ def match_template_all_rotation(image, template_path, output_path, scale_height=
 
         black = np.zeros_like(gray_crop)
         cv2.drawContours(black, [cnt], -1, (255, 255, 255), -1)
+
         result_image[y1:y2, x1:x2] = black
 
 

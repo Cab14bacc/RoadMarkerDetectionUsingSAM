@@ -136,9 +136,13 @@ def set_args():
     parser.add_argument('--image', '-i', type=str, help='Path to the image file', required=True)
     parser.add_argument('--output', '-o', type=str, help='Path to save the output image', default='./')
     parser.add_argument('--config', type=str, help='Path to load the config file', required=True)
+    parser.add_argument('--bigtiff', action='store_true', help='Use big tiff manager to predict')
     args = parser.parse_args()
     return args
 
 if __name__ == "__main__":
     args = set_args()
-    match_arrow_template_from_mapjson(args)
+    if args.bigtiff:
+        match_arrow_template_from_mapjson(args)
+    else:
+        match_arrow_template(args)
