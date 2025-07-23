@@ -2,7 +2,6 @@ import cv2
 import os
 import yaml
 import numpy as np
-from mapJson.mapObjData import MapJsonObj
 
 def num_to_pixel_cm(num, pixel_cm):
     return num / pixel_cm
@@ -142,26 +141,6 @@ def load_config(config_path, field=None):
         if field not in config:
             raise KeyError(f"Field '{field}' not found in config file: {config_path}")
         return config[field]
-
-def build_map_json_obj(mask, index):
-    # find bounding box of mask
-    bbox = find_boolean_mask_bounding(mask)
-    if bbox is None:
-        print("No bounding box found for the mask.")
-        return None
-
-    # transform mask boolean to uint8 (0 or 1)
-    mask = mask.astype(np.uint8)
-    # copy bounding box area from mask to mask_bbox
-    mask_bbox = mask[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-    temp_map = {}
-    # check if index in temp_map, if not, set to 'other'
-    label = 'other'
-    if index in temp_map:
-        label = temp_map[index]
-    # create MapJsonObj object
-    map_json_obj = MapJsonObj(label=str(label), bbox=bbox, mask=mask_bbox)
-    return map_json_obj.to_dict()
 
 def binary_mask_to_array(mask):
     """

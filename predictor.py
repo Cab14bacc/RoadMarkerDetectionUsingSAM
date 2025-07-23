@@ -72,11 +72,6 @@ def predict_process(image, predictor, input_points_list, input_labels_list, usag
         # combine to mask_combine
         mask_combine = np.logical_or(mask_combine, result_mask)
         
-        # # log mask obj list
-        # map_json_obj = common.build_map_json_obj(masks[0], i)
-        # if map_json_obj is not None:
-        #     map_obj_list.append(map_json_obj)
-
     # save mask_combine as mask_combine.png
     # mask combine to opencv accept format
     mask_combine = mask_combine.astype(np.uint8) * 255
