@@ -1,7 +1,7 @@
 import os
 import sys
 
-from .config import Config
+from ..configUtils import Config
 
 class ClassifierConfig(Config):
     def get(self, field=None):

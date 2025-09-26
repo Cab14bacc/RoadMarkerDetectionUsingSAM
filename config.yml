@@ -1,5 +1,5 @@
 Common:
-  pixel_cm: 2
+  pixel_cm: 1
   usage_list: ['default', 'square', 'yellow', 'arrow', 'line']
 
 ColorFilter:

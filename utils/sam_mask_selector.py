@@ -4,7 +4,7 @@ import cv2
 
 import common
 
-from predictorConfig import PredictorConfig
+from utils.configUtils.predictorConfig import PredictorConfig
 
 class SAMMaskSelector:
     def __init__(self, config):
@@ -34,6 +34,7 @@ class SAMMaskSelector:
         if usage == 'default':
             return self.default_selector(mask, index, usage)
         elif usage == 'line':
+            # FIXME: usage should not be passed in as ratio but ratio is unused so fine for now 
             return self.line_selector(mask, index, usage)
         elif usage == 'arrow': 
             return self.arrow_selector(mask, index, usage)
@@ -151,6 +152,7 @@ class SAMMaskSelector:
         pixel_cm = self.config.get_pixel_cm()
 
         min_area_threshold, max_area_threshold = self.config.get_threshold_from_usage(usage)
+
         min_area_threshold = min_area_threshold / pixel_cm / pixel_cm
         max_area_threshold = max_area_threshold / pixel_cm / pixel_cm
 
@@ -161,7 +163,9 @@ class SAMMaskSelector:
         mask_int = mask.astype(np.uint8) * 255
 
         keep_flag, result_mask = common.analyze_all_line_mask(mask_int, ratio=3, pixel_cm=pixel_cm, index=index, max_area_threshold=max_area_threshold, min_area_threshold=min_area_threshold)
+        # keep_flag, result_mask = common.analyze_all_line_mask(mask_int, ratio=3, pixel_cm=pixel_cm, index=index, max_area_threshold=float('inf'), min_area_threshold=0)
         self.selected_mask = result_mask
+
         if (keep_flag):
             return True
         # if (common.analyze_line_mask(mask_int, ratio=2)):

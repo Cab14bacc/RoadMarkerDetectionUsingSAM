@@ -1,11 +1,9 @@
 import numpy as np
 
 class TileData:
-    def __init__(self, image, start_coord, input_points_list, input_labels_list, tile_size=1024):
+    def __init__(self, image, start_coord, tile_size=1024):
         self.image = image
         self.start_coord = start_coord
-        self.input_points_list = input_points_list
-        self.input_labels_list = input_labels_list
         self.tile_size = tile_size
     
     def get_image(self):
@@ -14,5 +12,11 @@ class TileData:
     def get_start_coord(self):
         return self.start_coord
     
+class SamTileData(TileData):
+    def __init__(self, image, start_coord, input_points_list, input_labels_list, tile_size=1024):
+        super().__init__(image, start_coord)
+        self.input_points_list = input_points_list
+        self.input_labels_list = input_labels_list
+
     def get_input_list(self):
         return self.input_points_list, self.input_labels_list

@@ -1,17 +1,46 @@
 Common:
+  # cm in one pixel
   pixel_cm: 1
   usage_list: ['default', 'square', 'yellow', 'arrow', 'line']
 
 ColorFilter:
   color_list: [[225, 225, 225], [112, 206, 244]]
   color_label: ['white', 'yellow']
-  area_threshold: [100, 300, 1000, 300, 1500]
+  area_threshold: [100, 300, 1000, 300, 300]
   color_threshold: 120
   save_flag: true
 
 Predictor:
-  checkpoint: './checkpoints/sam_vit_b_01ec64.pth'
-  max_area_threshold: [30000, 750000, 750000, 55000, 41000]
-  min_area_threshold: [100, 100, 6000, 9000, 600]
-  sample_points_interval: [32, 32, 32, 32, 32]
+  checkpoint: './checkpoints/sam_vit_h_4b8939.pth'
+  # max_area_threshold: [30000, 750000, 750000, 55000, 41000]
+  max_area_threshold: [30000, 750000, 750000, 55000, 80000]
+  min_area_threshold: [100, 100, 6000, 9000, 2000]
+  # in real size (cm)
+  # sample_points_interval: [16, 16, 16, 16, 16]
+  sample_points_interval: [10, 10, 10, 10, 10]
   save_flag: True
+
+Classifier:
+  scale_height: 500
+  base_path: 'C:/Users/Leo/Documents/GitRepos/RoadMarkerDetectionUsingSAM/Marker'
+  marker_template: ['forward_right_arrow.png', 'forward_left_arrow.png', 'Arrow.png', 'right_arrow.png', 'left_arrow.png']
+  # threshold: [0.65, 0.73, 0.73, 0.73, 0.73]
+  threshold: [0.7, 0.7, 0.7, 0.7, 0.7]
+  angle_step: 5
+
+SplineTest:
+  white_color: [225, 225, 225]
+  yellow_color: [112, 206, 244]
+
+  # the closest dist from a spline to another extended spline (in cm)
+  parallel_dist_threshold: 35 
+  # the dist from endpoints of a spline to other endpoints of spline (in cm)
+  endpoint_dist_threshold: 1200
+
+  variance_threshold: 0.2
+  outlier_count_threshold: 2
+  # how much deviation from 600cm (gaps between splines) do we allow, we use median of the line gaps to compare against this value
+  spline_gap_threshold: 150
+  # how much deviation from 400cm (spline length) do we allow, we use median of the arc lengths to compare against this value
+  spline_length_threshold: 150
+

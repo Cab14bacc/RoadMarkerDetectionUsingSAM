@@ -70,7 +70,8 @@ def match_template_all_rotation(image, template_path, output_path, scale_height=
         img_gray = img_rgb  # Already grayscale
 
     # Load the template image
-    template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    template = cv2.imdecode(np.fromfile(template_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+    # template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
     assert template is not None, "file could not be read, check with os.path.exists()"
     # scale template to height 50 pixel as same ratio
     scale = scale_height / template.shape[0]
@@ -90,9 +91,9 @@ def match_template_all_rotation(image, template_path, output_path, scale_height=
         boxes.extend(new_boxes)
         scores.extend(new_scores)
         # append the angle to angles list with the same length as boxes and scores
-        for _ in range(len(new_boxes)):
+        for i in range(len(new_boxes)):
             angles.append(angle)
-    
+
 
     result_boxes, result_angles = filter_boxes(boxes, scores, angles, 0.3)
 
@@ -107,23 +108,33 @@ def match_template_all_rotation(image, template_path, output_path, scale_height=
     # for loop result_boxes and angles
     for (x1, y1, x2, y2), angle in zip(result_boxes, result_angles):
 
-        # Crop the image
-        # cropped_image = img_rgb[y1:y2, x1:x2]
-        # gray = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
-        gray_crop = img_gray[y1:y2, x1:x2]
-        _, thresh = cv2.threshold(gray_crop, 127, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # # Crop the image
+        # # cropped_image = img_rgb[y1:y2, x1:x2]
+        # # gray = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
+        # gray_crop = img_gray[y1:y2, x1:x2]
+        # _, thresh = cv2.threshold(gray_crop, 127, 255, cv2.THRESH_BINARY)
+        # contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        if not contours:
-            continue
+        # if not contours:
+        #     continue
 
+        rotated = rotate_image_bound(template, angle)
+        contours, _ = cv2.findContours(rotated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # Find the largest contour
         cnt = max(contours, key=cv2.contourArea)
 
-        black = np.zeros_like(gray_crop)
-        cv2.drawContours(black, [cnt], -1, (255, 255, 255), -1)
+        # black = np.zeros_like(gray_crop)
+        # cv2.drawContours(black, [cnt], -1, (255, 255, 255), -1)
 
-        result_image[y1:y2, x1:x2] = black
+        # result_image[y1:y2, x1:x2] = black
+        rect = cv2.minAreaRect(cnt)
+        box = cv2.boxPoints(rect)
+        box = np.int32(box)
+        cv2.drawContours(rotated, [box] , 0, (255,255,255), -1)
+
+        result_image[y1:y2, x1:x2] = rotated
+
+
 
 
     # print(f"Total matches found: {match_count}")

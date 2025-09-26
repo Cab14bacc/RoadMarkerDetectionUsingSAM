@@ -24,6 +24,9 @@ def build_point_grid_xy(n_per_side_x: int, n_per_side_y: int) -> np.ndarray:
     return points
 
 def build_point_grid_from_real_size(pixel_cm: int, width: int, height: int, points_interval: int):
+    """
+    points_interval is real size interval in cm
+    """
     # sample_len = min(width, height)
     n_per_side_x = width * pixel_cm / points_interval
     n_per_side_y = height * pixel_cm / points_interval
@@ -45,6 +48,8 @@ def save_mask_index(mask, path="./", index=0):
     # Save the mask image
     file_path = os.path.join(path, f"mask_{index}.png")
     mask_image.save(file_path)  # Save as PNG with a unique name
+
+    return np.array(mask_image)
 
 def build_point_grid_in_crop_mask(n_per_side: int, mask_array: np.ndarray, offsets=(0, 0), grids=None, original_size=(1024, 1024)) -> np.ndarray:
     """Generates a 2D grid of points evenly spaced in [0,1]x[0,1]."""
@@ -78,32 +83,42 @@ def build_point_grid_in_crop_mask(n_per_side: int, mask_array: np.ndarray, offse
     
     return np.array(result)
 
-def sample_grid_from_mask(mask_image, min_area_threshold=10000, grids=None, sample_outside=False):
+def sample_grid_from_mask(mask_image, min_area_threshold=0, grids=None, sample_outside=False):
     binary_mask = check_mask_type(mask_image)
+
     original_height, original_width = binary_mask.shape
     # connectedComponentsWithStats to separate mask into connected components
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8)
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_mask, connectivity=8) # label 0 is background
     # stats is a list of [x, y, width, height, area] for each component
     input_points_list = []
     input_labels_list = []
+    kernel_size = 5
 
-    print("num_labels:", num_labels)
+    print("num_labels (num of connected components):", num_labels)
     for i in range(1, num_labels):
         x, y, w, h, area = stats[i]
         bounding_area = w * h
         # filter out small components based on bounding box area size
-        if bounding_area < min_area_threshold:
-            continue
-         
+        # if bounding_area < min_area_threshold:
+        #     continue
+        
         component_mask = (labels[y:y+h, x:x+w] == i).astype(np.uint8) * 255
         input_points = build_point_grid_in_crop_mask(128, component_mask, (y, x), grids, original_size=(original_height, original_width))
-        
         input_labels = np.ones(input_points.shape[0], dtype=int)  # Foreground
+        
+        keep_list = []
+
+        for i, input_point in enumerate(input_points):
+            if not check_dist_to_background(binary_mask, input_point, kernel_size):
+                keep_list.append(i)
+        
+        input_points = input_points[keep_list]
+        input_labels = input_labels[keep_list]
 
         if input_points.shape[0] == 0:
             continue
-            # sample point at the nearest centroid of the mask where mask value is 255 
             cx, cy = find_centroid_in_white(component_mask)
+            # sample point at the nearest centroid of the mask where mask value is 255 
             input_points = np.array([[cx, cy]])
             input_labels = np.array([1])
             
@@ -111,6 +126,7 @@ def sample_grid_from_mask(mask_image, min_area_threshold=10000, grids=None, samp
         # append input points and labels to list
         input_points_list.append(input_points)
         input_labels_list.append(input_labels)
+
 
     return input_points_list, input_labels_list
 
@@ -143,6 +159,33 @@ def find_centroid_in_white(mask):
 
     return nearest_point[0], nearest_point[1]
 
+def check_dist_to_background(mask, pt, kernel_size):
+    if isinstance(kernel_size, int):
+        kernel_size = kernel_size + 1 if kernel_size % 2 == 0 else kernel_size
+        kernel_half_size = kernel_size // 2
+    else:
+        raise RuntimeError("kernel parameter must be a int or ndarray")
+    
+    base_x, base_y = pt
+    height, width = mask.shape[:2]
+
+    for i in range(-kernel_half_size, kernel_half_size):
+        for j in range(-kernel_half_size, kernel_half_size):
+            y = base_y + i
+            x = base_x + j
+
+
+            if 0 <= y < height and 0 <= width < width and mask[y][x] == 0:
+               return True
+    
+    return False
+    
+    
+
+    
+    
+    
+
 def check_mask_type(mask_image):
     if isinstance(mask_image, str):
         mask_image_path = mask_image
@@ -165,5 +208,6 @@ def save_keep_index_list(save_path, keep_index_list, keep_area_list=None, keep_b
             if keep_area_list is not None:
                 f.write(" %s" % keep_area_list[i])
             if keep_bool_list is not None:
+                # TODO: save as int not boolean as it shows up as True/False strings
                 f.write(f" {keep_bool_list[i]}")
             f.write("\n")

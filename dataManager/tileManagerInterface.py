@@ -15,8 +15,10 @@ init argument:
 '''
 class TileManagerInterface:
     def split_tile_position(self, h, w):
-        (x_coords, y_coords), (x_covers, y_covers) = self.compute_tile_position((h, w))
-        return (x_coords, y_coords), (x_covers, y_covers)
+        # (x_coords, y_coords), (x_covers, y_covers) = self.compute_tile_position((h, w))
+        coords, overlap_coords = self.compute_tile_position((h, w))
+        return coords, overlap_coords
+        # return (x_coords, y_coords), (x_covers, y_covers)
 
     def compute_tile_position(self, shape):
         h, w = shape
@@ -34,10 +36,38 @@ class TileManagerInterface:
         coords_y = compute_positions(h)
         coords_x = compute_positions(w)
 
+        tmp_x, tmp_y = np.meshgrid(coords_x, coords_y)
+        coords = np.concatenate([tmp_x[..., None], tmp_y[..., None]], axis=-1).reshape(-1, 2)
+
         offset = tile_size // 2
 
         offset_x = [x + offset for x in coords_x if x + offset + tile_size <= w]
+        offset_x.insert(0, coords_x[0])
+        offset_x.append(coords_x[-1])
+
         offset_y = [y + offset for y in coords_y if y + offset + tile_size <= h]
+        offset_y.insert(0, coords_y[0])
+        offset_y.append(coords_y[-1])
 
+        tmp_x, tmp_y = np.meshgrid(offset_x, offset_y)
+        offset_coords = np.concatenate([tmp_x[..., None], tmp_y[..., None]], axis=-1).reshape(-1, 2)
 
-        return (coords_x, coords_y), (offset_x, offset_y)
+        # remove (0, 0), ()
+        remove_indices = []
+        remove_coords = {
+            (coords_x[0], coords_y[0]),
+            (coords_x[0], coords_y[-1]),
+            (coords_x[-1], coords_y[0]),
+            (coords_x[-1], coords_y[-1])
+        }
+
+        for idx, offset_coord in enumerate(offset_coords):
+            if tuple(offset_coord) in remove_coords:
+                remove_indices.append(idx)
+        
+        mask = np.ones(len(offset_coords), dtype=bool)
+        mask[remove_indices] = False
+        offset_coords = offset_coords[mask]
+        
+        return coords, offset_coords 
+        # return (coords_x, coords_y), (offset_x, offset_y)

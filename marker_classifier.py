@@ -3,7 +3,7 @@ import os
 import numpy as np
 import argparse
 from utils.matchTemplate import match_template_all_rotation
-from utils.classifierConfig import ClassifierConfig
+from utils.configUtils.classifierConfig import ClassifierConfig
 from dataManager.mapJsonData import MapJsonData
 from utils.common import connected_components_to_scaled_mask
 
@@ -15,7 +15,8 @@ def load_config(config_path):
     template_path = config.get('Classifier')['marker_template']
     threshold = config.get('Classifier')['threshold']
     scale_height = config.get('Classifier')['scale_height']
-    return base_path, template_path, threshold, scale_height
+    angle_step = config.get('Classifier')['angle_step']
+    return base_path, template_path, threshold, scale_height, angle_step
 
 def padding_mask_region(bbox, component, marker_size=600):
     xs = [pt[0] for pt in component]
@@ -47,7 +48,7 @@ def padding_mask_region(bbox, component, marker_size=600):
 def match_arrow_template_from_mapjson(args):
     json_path = args.image
     output_path = args.output
-    base_path, template_paths, thresholds, scale_height = load_config(args.config)
+    base_path, template_paths, thresholds, scale_height, angle_step = load_config(args.config)
 
     map_json_data = MapJsonData.from_file(args.image)
     components = map_json_data.get_components_list()
@@ -93,11 +94,13 @@ def match_arrow_template_from_mapjson(args):
         result_map_json.save_to_file(result_json_path)
         preview = connected_components_to_scaled_mask(result_components, [shape[0], shape[1]], scaled=0.1)
         # imwrtie mask
-        cv2.imwrite(os.path.join(output_path, "marker_result.png"), preview)
+        encode_result, encoded_image = cv2.imencode(".png", preview)
+        encoded_image.tofile(os.path.join(output_path, "marker_result.png"))
+        # cv2.imwrite(os.path.join(output_path, "marker_result.png"), preview)
 
 def match_arrow_template(args):
-    base_path, template_paths, thresholds, scale_height = load_config(args.config)
-
+    base_path, template_paths, thresholds, scale_height, angle_step = load_config(args.config)
+    
     result_list = []
     for i in range(len(template_paths)):
         
@@ -108,7 +111,7 @@ def match_arrow_template(args):
 
         result = match_template_all_rotation(args.image, path, args.output,
                                              scale_height=scale_height, threshold=threshold,
-                                             pre_name=template, save_flag=True)
+                                             pre_name=template, angle_step=angle_step, save_flag=True)
         result_list.append(result)
     
     # combine all result with or operation
@@ -117,7 +120,9 @@ def match_arrow_template(args):
         combine_result |= res
     
     filename = os.path.join(args.output, 'result.png')
-    cv2.imwrite(filename, combine_result)
+    encode_result, encoded_image = cv2.imencode(".png", combine_result)
+    encoded_image.tofile(filename)
+    # cv2.imwrite(filename, combine_result)
     print(f"Result saved to {filename}")
 
 def test():
@@ -142,6 +147,8 @@ def set_args():
 
 if __name__ == "__main__":
     args = set_args()
+    os.makedirs(name=args.output, exist_ok=True)
+
     if args.bigtiff:
         match_arrow_template_from_mapjson(args)
     else:

@@ -4,8 +4,8 @@ import os
 import numpy as np
 import sys
 sys.path.append("./utils")
-import common
-from predictorConfig import PredictorConfig
+import utils.common as common
+from utils.configUtils.predictorConfig import PredictorConfig
 
 # filter out the color which not close to given color_list
 class ColorFilter:
@@ -31,13 +31,21 @@ class ColorFilter:
 
         self.image = None
         self.mask_color_image = None
+        self.mask_color_image_before_area_filter = None
         self.mask_binary_image = None
         self.label_image_list = None
         
         self.check_input_image(input_path)
-        #self.image = common.enhance_brightness_saturation(self.image)
+        # self.image = common.enhance_brightness_saturation(self.image)
+        self.image = common.enhance_edge(self.image)
         if (save_flag):
-            cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
+            if not os.path.exists(self.output_path):
+                os.makedirs(self.output_path)
+
+            result, encoded_img = cv2.imencode(".jpg", self.image)
+            encoded_img.tofile(os.path.join(self.output_path, 'enhanced_image.jpg'))
+            # cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
+            # cv2.imwrite(os.path.join(self.output_path, 'enhanced_image.jpg'), self.image)
 
         if self.image is None:
             raise ValueError(f"Could not read image from {input_path}. Check the file path and format.")
@@ -47,7 +55,10 @@ class ColorFilter:
             # check input_path is file
             if not os.path.isfile(input_path):
                 raise ValueError(f"Input path {input_path} is not a valid file.")
-            self.image = cv2.imread(input_path)  # Load in grayscale
+            
+            self.image = cv2.imdecode(np.fromfile(input_path, dtype=np.uint8), cv2.IMREAD_COLOR)
+            # self.image = cv2.imread(input_path)  # Load in grayscale
+
         elif isinstance(input_path, np.ndarray):
             self.image = input_path
         else:
@@ -59,23 +70,38 @@ class ColorFilter:
 
         # Save the modified image
         if self.save_flag:
-            filename = self.get_color_mask_path()
-            cv2.imwrite(filename, self.mask_color_image)
+            filename = self._get_color_mask_path()
+            result, encoded_image = cv2.imencode("." + filename.split(".")[-1], self.mask_color_image)
+            encoded_image.tofile(filename)
+            # cv2.imwrite(filename, self.mask_color_image)
 
         gray_image = cv2.cvtColor(self.mask_color_image, cv2.COLOR_BGR2GRAY)
         _, binary_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
+        self.mask_color_image_before_area_filter = binary_image
+
+        if self.save_flag:
+                filename = self._get_binary_mask_before_area_filter_path()
+                result, encoded_image = cv2.imencode("." + filename.split(".")[-1], self.mask_color_image_before_area_filter)
+                encoded_image.tofile(filename)
+
         self.mask_binary_image = self._clean_small_area_from_mask(binary_image, self.area_threshold)
+        
         if (self.label_image_list is not None):
             for i in range(len(self.label_image_list)):
                 self.label_image_list[i] = self._clean_small_area_from_mask(self.label_image_list[i], self.area_threshold)
 
         if self.save_flag:
             filename = self._get_binary_mask_path()
-            cv2.imwrite(filename, self.mask_binary_image)
+            result, encoded_image = cv2.imencode("." + filename.split(".")[-1], self.mask_binary_image)
+            encoded_image.tofile(filename)
+            # cv2.imwrite(filename, self.mask_binary_image)
             if (self.label_image_list is not None) and (self.color_label is not None):
                 for i in range(len(self.label_image_list)):
                     filename = self._get_binary_color_mask_path(self.color_label[i])
-                    cv2.imwrite(filename, self.label_image_list[i])
+                    result, encoded_image = cv2.imencode("." + filename.split(".")[-1], 
+                                                         self.label_image_list[i])
+                    encoded_image.tofile(filename)
+                    # cv2.imwrite(filename, self.label_image_list[i])
         
         index = -1
         # index = where self.color_label == color_str, if no match label index = -1
@@ -120,12 +146,16 @@ class ColorFilter:
         # return the label image
         return self.label_image_list[index]
 
-    def get_color_mask_path(self):
+    def _get_color_mask_path(self):
         filename = os.path.join(self.output_path, 'filter_color.jpg')
         return filename
 
     def _get_binary_mask_path(self):
         filename = os.path.join(self.output_path, 'filter_color_binary.jpg')
+        return filename
+    
+    def _get_binary_mask_before_area_filter_path(self):
+        filename = os.path.join(self.output_path, 'filter_color_binary_before_area.jpg')
         return filename
 
     def _get_binary_color_mask_path(self, color_str='_'):
@@ -133,18 +163,27 @@ class ColorFilter:
         return filename
 
     def _keep_pixel_color(self, image, threshold=80):
+        """
+        return:
+            target: (H, W, 3) a colored mask that contains pixels from the input image 
+                    that is close enough to the target color 
+            
+            label_image_list: (len(self.color_list), H, W) is a list of grayscale masks that corresponds to different colors, 
+                    where its pixel is 255 when the corresponding pixel in the input image is close enough to the target color
+
+        """
         # grab the image dimensions
         h, w = image.shape[:2]
 
         reshaped_image = image.reshape(-1, 3)  # (H*W, 3)
         colors = np.array(self.color_list)     # (N, 3)
 
-        # check each pixel distance
-        dists = np.linalg.norm(reshaped_image[:, None, :] - colors[None, :, :], axis=2)
+        # check each pixel distance to each color
+        dists = np.linalg.norm(reshaped_image[:, None, :] - colors[None, :, :], axis=2) # (H*W, N)
 
         # find closest color index
-        closest_indices = np.argmin(dists, axis=1)
-        closest_distances = np.min(dists, axis=1)
+        closest_indices = np.argmin(dists, axis=1) # (H*W, 1)
+        closest_distances = np.min(dists, axis=1) # (H*W, 1)
 
         within_threshold = closest_distances <= threshold
         

@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from .tileData import TileData
+from .tileData import SamTileData
 from .tileManagerInterface import TileManagerInterface
 import os
 
@@ -14,50 +14,56 @@ init argument:
     input_labels_list: list of label set
     tile_size: split tile to each size
 '''
-class TileManager(TileManagerInterface):
+class SamTileManager(TileManagerInterface):
     def __init__(self, source_image, input_points_list, input_labels_list, tile_size=1024):
 
-        self.source_tile = TileData(
+        self.source_tile = SamTileData(
             image=source_image,
             start_coord=[0, 0],
             input_points_list=input_points_list,
             input_labels_list=input_labels_list,
             tile_size=tile_size
         )
+
         self.tile_size = tile_size
         self.split_tile_list = []
 
     def split_tile(self):
         h, w, _ = self.source_tile.get_image().shape
-        (x_coords, y_coords), (x_covers, y_covers) = self.split_tile_position(h, w)
-
+        coords, overlap_coords = self.split_tile_position(h, w)
+        
         self.split_tile_list = []
 
-        self._collect_tiles(x_coords, y_coords)
-        self._collect_tiles(x_covers, y_covers)
+        self._collect_tiles(coords)
+        self._collect_tiles(overlap_coords)
 
-    def _collect_tiles(self, x_starts, y_starts):
+    def _collect_tiles(self, tile_coords):
         image = self.source_tile.get_image()
         input_points_list, input_labels_list = self.source_tile.get_input_list()
+
         tile_size = self.tile_size
 
         h, w, _ = image.shape
-        for y_start in y_starts:
-            for x_start in x_starts:
-                x_end = min(x_start + tile_size, w)
-                y_end = min(y_start + tile_size, h)
-                tile = image[y_start:y_end, x_start:x_end].copy()
-                local_points_list, local_labels_list = self._split_input_list_from_range(input_points_list, input_labels_list, [x_start, x_end], [y_start, y_end])
+        count = 0 
+        for x_start, y_start in tile_coords:
+            x_end = min(x_start + tile_size, w)
+            y_end = min(y_start + tile_size, h)
+            tile = image[y_start:y_end, x_start:x_end].copy()
+            # cv2.imshow("sldfkj", tile)
+            # cv2.waitKey()
 
-                if (local_points_list):
-                    tile_data = TileData(
-                        image=tile,
-                        start_coord=[x_start, y_start],
-                        input_points_list=local_points_list,
-                        input_labels_list=local_labels_list,
-                        tile_size=tile_size
-                    )
-                    self.split_tile_list.append(tile_data)
+            local_points_list, local_labels_list = self._split_input_list_from_range(input_points_list, input_labels_list, [x_start, x_end], [y_start, y_end])
+
+
+            if (local_points_list):
+                tile_data = SamTileData(
+                    image=tile,
+                    start_coord=[x_start, y_start],
+                    input_points_list=local_points_list,
+                    input_labels_list=local_labels_list,
+                    tile_size=tile_size
+                )
+                self.split_tile_list.append(tile_data)
 
     def _split_input_list_from_range(self, input_points_list, input_labels_list, x_bound, y_bound):
         local_points_list = []
@@ -65,7 +71,7 @@ class TileManager(TileManagerInterface):
         for points, labels in zip(input_points_list, input_labels_list):
             local_points = []
             local_labels = []
-            for point, label in zip(points, labels):
+            for point, label in zip(points, labels): 
                 x, y = point
                 if (x >= x_bound[0] and x < x_bound[1] and y >= y_bound[0] and y < y_bound[1]):
                     local_points.append([int(x - x_bound[0]), int(y - y_bound[0])])

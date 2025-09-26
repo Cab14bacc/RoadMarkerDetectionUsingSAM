@@ -1,14 +1,18 @@
 from .tileManagerInterface import TileManagerInterface
-from .tileData import TileData
+from .tileData import SamTileData
 
 import tifffile
 import cv2
 from color_filter import ColorFilter
 
 import sys
+import numpy as np
 sys.path.append("../utils")
 from tiffLoader import TiffLoader
 
+"""
+deprecated, not fixed 
+"""
 class BigTiffManager(TileManagerInterface):
     def __init__(self, input_path, output_path,  tile_size=1024):
         self.source_image_path = input_path
@@ -22,10 +26,13 @@ class BigTiffManager(TileManagerInterface):
 
     def get_split_tile_coords(self):
         height, width, channels = self.image_map.shape
-        (x_coords, y_coords), (x_covers, y_covers) = self.split_tile_position(height, width)
+        # (x_coords, y_coords), (x_covers, y_covers) = self.split_tile_position(height, width)
+        coords, covers = self.split_tile_position(height, width)
 
-        x_coord_list, y_coord_list = self._combination_of_tiles(x_coords, y_coords)
-        x_coord_list_covers, y_coord_list_covers = self._combination_of_tiles(x_covers, y_covers)
+        x_coord_list, y_coord_list = np.array(coords)[..., 0], np.array(coords)[..., 1]
+        x_coord_list_covers, y_coord_list_covers = np.array(covers)[..., 0], np.array(covers)[..., 1]
+
+        # x_coord_list_covers, y_coord_list_covers = self._combination_of_tiles(x_covers, y_covers)
 
         return x_coord_list, y_coord_list, x_coord_list_covers, y_coord_list_covers
 

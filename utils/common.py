@@ -43,51 +43,81 @@ def analyze_line_mask(mask_image, ratio=10, pixel_cm=5, index=None):
 def get_line_width(mask):
     # measure thickness (distance to nearest background pixel)
     dist = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+    # temp = np.zeros_like(dist)
+    # temp = cv2.normalize(dist, temp, 0, 255, cv2.NORM_MINMAX)
+    # temp = temp.astype(np.uint8)
+    # cv2.imshow("sdlfkjas", temp)
+    # cv2.waitKey()
     # distanceTransform give half width
     max_thickness = dist.max() * 2
     return max_thickness
 
-def check_mask_is_line(mask, pixel_cm, thickness=50):
+def check_mask_is_line(mask, pixel_cm, thickness_threshold=50):
+    
+    mask = np.pad(mask, ((10, 10), (10, 10))) # pad with zero to handle truncated components at borders
     max_thickness = get_line_width(mask)
     # according to most of the road line width, smaller than 50
-    if max_thickness > thickness/pixel_cm:
+
+    if max_thickness > thickness_threshold/pixel_cm:
         return False
     return True
 
 def analyze_all_line_mask(mask_image, ratio=10, pixel_cm=5, index=None, max_area_threshold=41000, min_area_threshold=1000):
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_image, connectivity=8)
+
+    # max_label = np.max(labels)
+    # color_interval = 255 // max_label
+    # temp = np.array(labels, dtype=np.uint8) * color_interval
+    # hsv_img = np.zeros((*temp.shape, 3), dtype=np.uint8)
+    # hsv_img[..., 0] = temp
+    # hsv_img[..., 1] = 255
+    # hsv_img[..., 2] = 255
+    # bgr_img = cv2.cvtColor(hsv_img, cv2.COLOR_HSV2BGR)
+
+
     keep_mask_flag = False
     # create same size zero like mask
     mask = np.zeros_like(mask_image, dtype=np.uint8)
 
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        
+        # left = stats[i, cv2.CC_STAT_LEFT]
+        # top = stats[i, cv2.CC_STAT_TOP]    
+        # cv2.putText(bgr_img, str(area), (left, top + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
         if (area > max_area_threshold or area < min_area_threshold):
             continue
+
 
         # draw the mask
         temp_mask = np.zeros_like(mask_image, dtype=np.uint8)
         temp_mask[labels == i] = 255
 
         # check line thickness
-        if not check_mask_is_line(temp_mask, pixel_cm, 16):
+        # if not check_mask_is_line(temp_mask, pixel_cm, 16):
+        if not check_mask_is_line(temp_mask, pixel_cm, 18):
             continue
 
         # Bounding rectangle
-        x, y, w, h = stats[i, :4]
-        aspect_ratio = float(w) / h if h != 0 else 0
-        rect = cv2.minAreaRect(np.argwhere(labels == i))
-        (center), (width, height), angle = rect
+        # x, y, w, h = stats[i, :4]
+        # aspect_ratio = float(w) / h if h != 0 else 0
+        # rect = cv2.minAreaRect(np.argwhere(labels == i))
+        # (center), (width, height), angle = rect
 
-        # aspect ratio
-        min_aspect_ratio = max(width, height) / min(width, height) if min(width, height) != 0 else 0
+        # # aspect ratio
+        # min_aspect_ratio = max(width, height) / min(width, height) if min(width, height) != 0 else 0
 
         # if min_aspect_ratio < ratio:
         #     continue
 
         keep_mask_flag = True
         mask[labels == i] = 1
+
+        max_label = np.max(labels)
+
+    # cv2.imshow("HSV as BGR", bgr_img)
+    # cv2.imshow("sdlkfddj", mask * 255)
+    # cv2.waitKey()
+
     return keep_mask_flag, mask
 
 
@@ -125,6 +155,33 @@ def enhance_brightness_saturation(image_BGR):
     enhanced_img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
     return enhanced_img
+
+def enhance_edge(image):
+    """
+    Enhance edges in the input image using Canny edge detection and overlay the edges.
+    Returns an image with enhanced edges.
+    """
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image.copy()
+
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+
+    # Detect edges using Canny
+    edges = cv2.Canny(blurred, 100, 200)
+
+    # If input is color, overlay edges in red
+    if len(image.shape) == 3:
+        edge_img = image.copy()
+        edge_img[edges > 0] = [0, 0, 255]  # Red edges
+    else:
+        # For grayscale, just return the edges
+        edge_img = cv2.addWeighted(gray, 0.8, edges, 0.2, 0)
+
+    return edge_img
 
 # load config file return config
 def load_config(config_path, field=None):
@@ -239,7 +296,9 @@ def get_image(input_path):
         # check input_path is file
         if not os.path.isfile(input_path):
             raise ValueError(f"Input path {input_path} is not a valid file.")
-        image = cv2.imread(input_path)  # Load in grayscale
+        image = cv2.imdecode(np.fromfile(input_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        # image = cv2.imread(input_path)
+
     elif isinstance(input_path, np.ndarray):
         image = input_path
     else:
