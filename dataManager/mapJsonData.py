@@ -7,6 +7,17 @@ from colorsys import hsv_to_rgb
 
 
 class JsonData:
+    """
+    params:
+        components: 
+            List of (x, y) image coordinates.
+
+        original_shape: 
+            Shape of Image
+
+        bbox_list: 
+            List of bboxes of each component
+    """
     def __init__(self, components, original_shape, bbox_list=None):
         self.original_shape = original_shape
         self.components = components
@@ -202,10 +213,39 @@ class MapJsonData(JsonData):
     
 
 class SplineJsonData(JsonData):
-    def __init__(self, components, component_pt_spline_indices, road_line_groups, road_line_types, original_shape, bbox_list=None):
+    """
+    params:
+        components: 
+            List of components. Each component is a List of (x, y) image coordinates.
+
+        component_spline_indices: 
+            List of spline correspondence info of each component. 
+            A correspondence info consists of spline indices, and has the same size as <components>. 
+            A component may consist of multiple splines.
+            e.g. A spline correspondence info: [1,1,1,3,3], 
+                first 3 points belong to spline 1, and the latter belong to spline 3.
+        
+        road_line_groups:
+            List of grouping info of each component. A grouping info is a list of groups.
+            Each group is a list of spline indices. 
+            Each group is meant to denote a type of road line (see <road_line_types>).
+            e.g. A grouping info [[1,3], [4,5]], means spline 1, 3 is in the same group forming a solid yellow line.
+        
+        road_line_types:
+            List of type info of each component. A type info is a list of types, each corresponds to a group.
+            e.g. A grouping info ["yellow solid", "yellow dashed"], 
+                meant this component is a double yellow line, where one is dashed and another solid. 
+
+        original_shape: 
+            Shape of Image.
+
+        bbox_list: 
+            List of bboxes of each component
+    """
+    def __init__(self, components, component_spline_indices, road_line_groups, road_line_types, original_shape, bbox_list=None):
         super().__init__(components, original_shape, bbox_list)
         self.road_line_types = road_line_types
-        self.component_pt_spline_indices = component_pt_spline_indices
+        self.component_pt_spline_indices = component_spline_indices
         self.road_line_groups = road_line_groups
 
         if not (len(self.road_line_types) == len(self.components) == len(self.component_pt_spline_indices)):
@@ -214,7 +254,7 @@ class SplineJsonData(JsonData):
         for label_idx, label in enumerate(self.labels):
             key = f"component_{label_idx}"
             label[key]["road_line_types"] = road_line_types[label_idx]
-            label[key]["spline_indices"] = component_pt_spline_indices[label_idx]
+            label[key]["spline_indices"] = component_spline_indices[label_idx]
             label[key]["road_line_groups"] = road_line_groups[label_idx]
 
     def to_json_dict(self):
