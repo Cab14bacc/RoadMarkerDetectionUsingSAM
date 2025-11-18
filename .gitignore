@@ -1,5 +1,10 @@
 # User
 output/
+input/
+scripts/
+checkpoints/
+
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

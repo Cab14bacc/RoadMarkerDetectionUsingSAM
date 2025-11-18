@@ -22,7 +22,7 @@ Predictor:
 
 Classifier:
   scale_height: 500
-  base_path: 'C:/Users/Leo/Documents/GitRepos/RoadMarkerDetectionUsingSAM/Marker'
+  base_path: './Marker'
   marker_template: ['forward_right_arrow.png', 'forward_left_arrow.png', 'Arrow.png', 'right_arrow.png', 'left_arrow.png']
   # threshold: [0.65, 0.73, 0.73, 0.73, 0.73]
   threshold: [0.7, 0.7, 0.7, 0.7, 0.7]
@@ -42,5 +42,6 @@ SplineTest:
   # how much deviation from 600cm (gaps between splines) do we allow, we use median of the line gaps to compare against this value
   spline_gap_threshold: 150
   # how much deviation from 400cm (spline length) do we allow, we use median of the arc lengths to compare against this value
-  spline_length_threshold: 150
+  spline_length_threshold: 300
+  save_flag: True
 
