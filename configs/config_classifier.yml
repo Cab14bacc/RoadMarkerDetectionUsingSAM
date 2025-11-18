@@ -1,6 +1,6 @@
 Classifier:
   scale_height: 500
-  base_path: './Marker'
+  base_path: './Assets/Marker'
   marker_template: ['forward_right_arrow.png', 'forward_left_arrow.png', 'Arrow.png', 'right_arrow.png', 'left_arrow.png']
   threshold: [0.65, 0.73, 0.73, 0.73, 0.73]
   angle_step: 5

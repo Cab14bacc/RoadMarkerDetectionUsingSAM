@@ -8,7 +8,7 @@ ColorFilter:
   color_label: ['white', 'yellow']
   area_threshold: [100, 300, 1000, 300, 300]
   color_threshold: 120
-  save_flag: true
+  save_flag: False
 
 Predictor:
   checkpoint: './checkpoints/sam_vit_h_4b8939.pth'
@@ -18,7 +18,7 @@ Predictor:
   # in real size (cm)
   # sample_points_interval: [16, 16, 16, 16, 16]
   sample_points_interval: [10, 10, 10, 10, 10]
-  save_flag: True
+  save_flag: False
 
 Classifier:
   scale_height: 500
@@ -43,5 +43,5 @@ SplineTest:
   spline_gap_threshold: 150
   # how much deviation from 400cm (spline length) do we allow, we use median of the arc lengths to compare against this value
   spline_length_threshold: 300
-  save_flag: True
+  save_flag: False
 
