@@ -1116,7 +1116,7 @@ def group_to_SplineJsonData(spline_data, groups, road_line_types, left_right_roa
         
     return json_data
 
-def classify_splines(spline_data, groups, image, config: SplineTestConfig | None, debug_path = None):
+def classify_splines(spline_data, groups, image, config: SplineTestConfig | None = None, debug_path = None):
 
     # load image
     if (isinstance(image, np.ndarray)):
@@ -1270,13 +1270,13 @@ def classify_splines(spline_data, groups, image, config: SplineTestConfig | None
             debug_image = draw_grouped_splines(component_spline_data, local_groups, np.zeros_like(source_image),colors)
             for i, spline_datum in enumerate(component_spline_data):
                 debug_pt = spline_datum["start"]
-                cv2.putText(debug_image, f"{i}", np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 255, 255), 3, cv2.LINE_AA)
+                cv2.putText(debug_image, f"{i}", np.array([debug_pt[0], min(debug_pt[1] + 100 * random.random(), height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 255), 3, cv2.LINE_AA)
 
             for group_idx, local_group in enumerate(local_groups):
                 spline = component_spline_data[local_group[0]]
                 debug_pt = spline["start"]
                 debug_string = " ".join([component_colors[group_idx], component_line_styles[group_idx]])
-                cv2.putText(debug_image, debug_string, np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 255), 3, cv2.LINE_AA)
+                cv2.putText(debug_image, debug_string, np.array([debug_pt[0], min(debug_pt[1] + 100* random.random(), height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 255), 3, cv2.LINE_AA)
 
 
             result, encoded_img = cv2.imencode('.png', debug_image)
@@ -1294,8 +1294,6 @@ def classify_splines(spline_data, groups, image, config: SplineTestConfig | None
 
     return road_line_types, new_groups, road_line_groups
 
-
-
 def filter_splines_by_variance(spline_data, max_variance=0.2):
     filtered_spline_data = []
     spline_variances = compute_spline_variances(spline_data)
@@ -1305,7 +1303,6 @@ def filter_splines_by_variance(spline_data, max_variance=0.2):
             filtered_spline_data.append(spline_data[spline_idx])
 
     return filtered_spline_data
-
 
 def compute_spline_variances(spline_data):
     spline_variances = []
@@ -1363,37 +1360,39 @@ def compute_spline_variances(spline_data):
 #     return mean_directions
 
 def keep_main_spline(mask_path, image_path, output_path, config : SplineTestConfig | None = None):
-
-    spline_data, binary_mask, skeleton_mask = image_to_spline_data(mask_path, debug=True)
-
-    smoothed_mask = binary_mask * 255
-    result, encoded_img = cv2.imencode(".png", smoothed_mask)
-    encoded_img.tofile(os.path.join(output_path, 'smooth_tile_combine.png'))  
-    
-    result, encoded_img = cv2.imencode(".png", skeleton_mask)
-    encoded_img.tofile(os.path.join(output_path, 'tile_combine_after_skeletonized.png'))  
+    save_flag = False
+    if config is not None:
+        save_flag = config.get(field='SplineTest')["save_flag"]
 
     if config is not None:
         pixel_cm = config.get_pixel_cm()
 
+    spline_data, binary_mask, skeleton_mask = image_to_spline_data(mask_path, debug=True)
     height, width = binary_mask.shape
-    result_img = np.zeros((height, width, 3), dtype=np.uint8)
-
-    result_img = draw_splines(spline_data, result_img)
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'all_splines.png'))
-
-    # DEBUG:
     spline_variances = compute_spline_variances(spline_data)
 
-    for spline_datum, variance in zip(spline_data, spline_variances):
-        debug_pt = spline_datum["start"]
-        cv2.putText(result_img, f"{variance:.2f}", np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 255, 255), 3, cv2.LINE_AA)
+    if save_flag:
+        smoothed_mask = binary_mask * 255
+        result, encoded_img = cv2.imencode(".png", smoothed_mask)
+        encoded_img.tofile(os.path.join(output_path, 'smooth_tile_combine.png'))  
     
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'all_splines_variance_debug.png'))
+        result, encoded_img = cv2.imencode(".png", skeleton_mask)
+        encoded_img.tofile(os.path.join(output_path, 'tile_combine_after_skeletonized.png'))  
 
-    result_img = np.zeros((height, width, 3), dtype=np.uint8)
+        result_img = np.zeros((height, width, 3), dtype=np.uint8)
+        result_img = draw_splines(spline_data, result_img)
+    
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'all_splines.png'))
+
+        for spline_datum, variance in zip(spline_data, spline_variances):
+            debug_pt = spline_datum["start"]
+            cv2.putText(result_img, f"{variance:.2f}", np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 255, 255), 3, cv2.LINE_AA)
+        
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'all_splines_variance_debug.png'))
+
+        result_img = np.zeros((height, width, 3), dtype=np.uint8)
 
     if config is not None:
         max_variance = config.get_variance_threshold()
@@ -1403,31 +1402,32 @@ def keep_main_spline(mask_path, image_path, output_path, config : SplineTestConf
 
     # max_extension_length = max(height, width)
     max_extension_length = int(np.sqrt(height * height + width * width))
-
     groups = group_by_direction_and_extension(spline_data, max_projection=max_extension_length, condition='direction')
-   
-    result_img = draw_grouped_splines(spline_data, groups, result_img)
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'all_splines_after_var_filter.png'))
-
-
-    for spline_datum in spline_data:
-        for spline_pt in spline_datum["spline_pts"]:
-            point = spline_datum
-            cv2.circle(img=result_img, center=spline_pt, radius=2, color=(255, 0, 0), thickness=2)
-
-
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'all_splines_endpoints.png'))
-    result_img = np.zeros((height, width, 3), dtype=np.uint8)
-
     # find the largest group
     largest_group = [max(groups, key=len)]
-    result_img = draw_grouped_splines(spline_data, largest_group, result_img=result_img)
+   
+    if save_flag:
+        result_img = draw_grouped_splines(spline_data, groups, result_img)
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'all_splines_after_var_filter.png'))
 
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'main_spline_result.png'))
 
+        for spline_datum in spline_data:
+            for spline_pt in spline_datum["spline_pts"]:
+                point = spline_datum
+                cv2.circle(img=result_img, center=spline_pt, radius=2, color=(255, 0, 0), thickness=2)
+
+
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'all_splines_endpoints.png'))
+        result_img = np.zeros((height, width, 3), dtype=np.uint8)
+
+
+        result_img = draw_grouped_splines(spline_data, largest_group, result_img=result_img)
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'main_spline_result.png'))
+
+    
     # filter_spline_data_by_variance
     spline_data = groups_to_spline_data(largest_group, spline_data)
 
@@ -1440,57 +1440,62 @@ def keep_main_spline(mask_path, image_path, output_path, config : SplineTestConf
         max_endpoint_dist = max_endpoint_dist / pixel_cm if max_endpoint_dist is not None else 1200
         groups = group_by_direction_and_extension(spline_data, max_parallel_dist, 
                                                   max_endpoint_dist, max_projection=max_extension_length)
-
     else:
         groups = group_by_direction_and_extension(spline_data, max_projection=max_extension_length)
 
-
-            
     # classify each group into a spline type: e.g. [white dashed, white dashed] denotes a double white dashed line
     road_line_types, groups, left_right_road_line_groups = classify_splines(spline_data, groups, image_path, config, debug_path=output_path)
 
-
-    # random color for each group
-    colors = [255 * np.array(hsv_to_rgb(i * (1 / (len(groups) - 1 + 1e-8)), 1, 1)) for i in range(len(groups))]
-    result_img = draw_grouped_splines(spline_data, groups, result_img, colors)
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'main_spline_grouping.png'))
-    
-    # DEBUG
-    for group_id, group in enumerate(groups):
-        for idx in group:
-            debug_pt = spline_data[idx]['start']
-            cv2.putText(result_img, str(group_id), np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 255, 255), 3, cv2.LINE_AA)
             
-    result, encoded_img = cv2.imencode(".png", result_img)
-    encoded_img.tofile(os.path.join(output_path, 'main_spline_grouping_debug.png'))
 
-    for i in range(len(spline_data)):
-        debug_img = debug_each_splines_extension(spline_data, result_img, max_extension_length, i)
+
+    if save_flag:
+        # random color for each group
+        colors = [255 * np.array(hsv_to_rgb(i * (1 / (len(groups) - 1 + 1e-8)), 1, 1)) for i in range(len(groups))]
+        result_img = draw_grouped_splines(spline_data, groups, result_img, colors)
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'main_spline_grouping.png'))
+        
+        debug_img = result_img.copy()
+        for group_id, group in enumerate(groups):
+            for idx in group:
+                debug_pt = spline_data[idx]['start']
+                cv2.putText(debug_img, str(idx), np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 255, 255), 3, cv2.LINE_AA)
+                
         result, encoded_img = cv2.imencode(".png", debug_img)
-        encoded_img.tofile(os.path.join(output_path, 'debug_extension', f'spline_debug_{i}.png'))
+        encoded_img.tofile(os.path.join(output_path, 'spline_indices.png'))
 
-    for group_idx, group in enumerate(groups):
-        for i in range(len(group)):
-            for j in range(i, len(group)):
-                idx_1 = group[i]
-                idx_2 = group[j]
-                debug_img = np.zeros_like(result_img)
-                debug_img = debug_each_splines_parallel_detection(spline_data, debug_img, 8, idx_1, idx_2)
-                result, encoded_img = cv2.imencode(".png", debug_img)
-                encoded_img.tofile(os.path.join(output_path, 'debug_parallel', f'spline_debug_{group_idx}_{idx_1}_{idx_2}.png'))
-    
+        # DEBUG
+        for group_id, group in enumerate(groups):
+            for idx in group:
+                debug_pt = spline_data[idx]['start']
+                cv2.putText(result_img, str(group_id), np.array([debug_pt[0], min(debug_pt[1] + 100, height)]).astype(np.int32), cv2.FONT_HERSHEY_SIMPLEX, 4, (0, 255, 255), 3, cv2.LINE_AA)
+                
+        result, encoded_img = cv2.imencode(".png", result_img)
+        encoded_img.tofile(os.path.join(output_path, 'main_spline_grouping_debug.png'))
+
+
+        for i in range(len(spline_data)):
+            debug_img = debug_each_splines_extension(spline_data, result_img, max_extension_length, i)
+            result, encoded_img = cv2.imencode(".png", debug_img)
+            encoded_img.tofile(os.path.join(output_path, 'debug_extension', f'spline_debug_{i}.png'))
+
+        for group_idx, group in enumerate(groups):
+            for i in range(len(group)):
+                for j in range(i, len(group)):
+                    idx_1 = group[i]
+                    idx_2 = group[j]
+                    debug_img = np.zeros_like(result_img)
+                    debug_img = debug_each_splines_parallel_detection(spline_data, debug_img, 8, idx_1, idx_2)
+                    result, encoded_img = cv2.imencode(".png", debug_img)
+                    encoded_img.tofile(os.path.join(output_path, 'debug_parallel', f'spline_debug_{group_idx}_{idx_1}_{idx_2}.png'))
+        
+
     json_data = group_to_SplineJsonData(spline_data, groups, road_line_types, left_right_road_line_groups, (height, width))
-    # mask = json_data.to_mask("spline", "colored")
-    # height, width = mask.shape[:2]
-    # height = height // 4
-    # width = width // 4
+    if save_flag:
+        json_data.save_to_file(os.path.join(output_path, 'spline_data_result.json'))
 
-    # mask = cv2.resize(mask, (width, height))
-    # cv2.imshow("sldjkfsl", mask)
-    # cv2.waitKey()
-    json_data.save_to_file(os.path.join(output_path, 'spline_data_result.json'))
-
+    return json_data
 
 def mapJson_to_spline(map_json_path, output_path):
     map_json_data = MapJsonData.from_file(map_json_path)

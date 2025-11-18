@@ -32,7 +32,9 @@ from dataManager.mapJsonData import MapJsonData
 
 def predict_process(image, predictor, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None, index=None):
     mask_selector = SAMMaskSelector(config=config)
-    save_flag = config.get(field='Predictor')['save_flag']
+    save_flag = False
+    if config is not None:
+        save_flag = config.get(field='Predictor')['save_flag']
     # new a black image as mask combine result
     mask_combine_after_seg = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
     mask_combine_after_selector = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
