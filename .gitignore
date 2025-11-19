@@ -3,6 +3,7 @@ output/
 input/
 scripts/
 checkpoints/
+.vscode/
 
 
 
