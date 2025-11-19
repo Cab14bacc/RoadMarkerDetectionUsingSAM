@@ -17,6 +17,8 @@ change checkpoints path in config.yml
     - area_threshold: Maximum mask size to be retained
 
 # Usage
+A pipeline for roadline detection is in pipeline.py
+
 Predict each element on road
 `python predictor.py -i <input_image> -o <output_path>`
 
