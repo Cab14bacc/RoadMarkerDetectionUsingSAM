@@ -137,34 +137,37 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
     pixel_cm = config.get_pixel_cm()
 
     # create save folder, and clears it if it exists
-    save_path = os.path.join(output_path, usage)
-    if (not os.path.exists(save_path)):
-        os.makedirs(save_path, exist_ok=True)
-    else:
-        for item in os.listdir(save_path):
-            target_file = os.path.join(save_path, item)
-            if os.path.isfile(target_file):
-                os.remove(target_file)
+    save_path = None
+    enhance_image_path = None
+    if save_flag:
+        save_path = os.path.join(output_path, usage)
+        if (not os.path.exists(save_path)):
+            os.makedirs(save_path, exist_ok=True)
+        else:
+            for item in os.listdir(save_path):
+                target_file = os.path.join(save_path, item)
+                if os.path.isfile(target_file):
+                    os.remove(target_file)
 
-    save_mask_path = os.path.join(save_path, 'masks')
-    if (not os.path.exists(save_mask_path)):
-        os.makedirs(save_mask_path, exist_ok=True)
-    else:
-        for item in os.listdir(save_mask_path):
-            target_file = os.path.join(save_mask_path, item)
-            if os.path.isfile(target_file):
-                os.remove(target_file)
+        save_mask_path = os.path.join(save_path, 'masks')
+        if (not os.path.exists(save_mask_path)):
+            os.makedirs(save_mask_path, exist_ok=True)
+        else:
+            for item in os.listdir(save_mask_path):
+                target_file = os.path.join(save_mask_path, item)
+                if os.path.isfile(target_file):
+                    os.remove(target_file)
 
-    save_line_path = os.path.join(save_path, 'line_masks')
-    if (not os.path.exists(save_line_path)):
-        os.makedirs(save_line_path, exist_ok=True)
-    else:
-        for item in os.listdir(save_line_path):
-            target_file = os.path.join(save_line_path, item)
-            if os.path.isfile(target_file):
-                os.remove(target_file)
-    
-    enhance_image_path = os.path.join(os.path.dirname(image_path), "enhanced_image.jpg")
+        save_line_path = os.path.join(save_path, 'line_masks')
+        if (not os.path.exists(save_line_path)):
+            os.makedirs(save_line_path, exist_ok=True)
+        else:
+            for item in os.listdir(save_line_path):
+                target_file = os.path.join(save_line_path, item)
+                if os.path.isfile(target_file):
+                    os.remove(target_file)
+        
+        enhance_image_path = os.path.join(os.path.dirname(image_path), "enhanced_image.jpg")
 
     if (isinstance(image_path, np.ndarray)):
         image = image_path
@@ -242,24 +245,30 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
     for local_image, local_points_list, local_labels_list in zip(image_list, input_points_list_set, input_labels_list_set):
         start_predict_time = time.perf_counter()
         show_index = None
+        if local_image is None:
+            count = count + 1
+            end_predict_time = time.perf_counter()
+            print(fr"index{count - 1} is none")
+            print(f'predict index{count - 1} time: {(end_predict_time - start_predict_time)} s')
 
-        if save_flag and local_image is not None:
+        local_mask_path = None
+        if save_flag:
             file_name = f"tile_image_{count}.png"
             temp = cv2.cvtColor(local_image, cv2.COLOR_RGB2BGR)
             result, encoded_image = cv2.imencode(".png", temp)
             encoded_image.tofile(os.path.join(save_mask_path, file_name))
-        # if count == 13:
-        #     show_index = 13
+            # if count == 13:
+            #     show_index = 13
 
-        local_mask_path = os.path.join(save_mask_path, f'{count}')
+            local_mask_path = os.path.join(save_mask_path, f'{count}')
 
-        if (not os.path.exists(local_mask_path)):
-            os.makedirs(local_mask_path, exist_ok=True)
-        else:
-            for item in os.listdir(local_mask_path):
-                target_file = os.path.join(local_mask_path, item)
-                if os.path.isfile(target_file):
-                    os.remove(target_file)
+            if (not os.path.exists(local_mask_path)):
+                os.makedirs(local_mask_path, exist_ok=True)
+            else:
+                for item in os.listdir(local_mask_path):
+                    target_file = os.path.join(local_mask_path, item)
+                    if os.path.isfile(target_file):
+                        os.remove(target_file)
 
         predictor.set_image(local_image)
 
@@ -286,13 +295,18 @@ def predict_each_sepatate_area_from_image_tile(image_path, mask_path, output_pat
             encoded_image.tofile(os.path.join(save_mask_path, file_name))
             # cv2.imwrite(os.path.join(save_mask_path, file_name), mask_combine_image)
             sam_use.save_keep_index_list(save_mask_path, keep_index_list, keep_area_list, keep_bool_list, f"keep_index_list_{count}.txt")
+        
         count = count + 1
         end_predict_time = time.perf_counter()
         print(f'predict index{count - 1} time: {(end_predict_time - start_predict_time)} s')
     
-    result = tileManager.combine_result_from_list(mask_combine_list, save_path)
+    result = tileManager.combine_result_from_list(mask_combine_list)
     mask_combine_image = Image.fromarray(result)  # Convert to 8-bit grayscale
-    mask_combine_image.save(os.path.join(save_path, 'tile_combine.png'))  # Save as PNG with a unique name
+    
+    if save_flag:
+        mask_combine_image.save(os.path.join(save_path, 'tile_combine.png'))  # Save as PNG with a unique name
+    
+    return np.array(mask_combine_image, dtype=np.uint8)
 
 # TODO: run one large road tile data
 def predict_large_tile(image_path, output_path, min_area_threshold=0, usage='default', color_usage='all', config=None):

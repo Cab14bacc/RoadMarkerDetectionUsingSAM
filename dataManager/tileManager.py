@@ -95,7 +95,7 @@ class SamTileManager(TileManagerInterface):
         
         return image_list, input_points_list_set, input_labels_list_set
     
-    def combine_result_from_list(self, combine_list, save_path='./'):
+    def combine_result_from_list(self, combine_list):
        
         image = self.source_tile.get_image()
         mask_combine = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)

@@ -142,7 +142,12 @@ def groups_to_spline_data(groups, spline_data):
     return result_spline_data
 
 def image_to_spline_data(image_path, debug=False):
-    binary_mask = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+    if (isinstance(image_path, np.ndarray)):
+        binary_mask = image_path.copy()
+    elif os.path.isfile(image_path):
+        binary_mask = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+    else:
+        binary_mask = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)        
     # binary_mask = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     binary_mask = (binary_mask > 127).astype(np.uint8)
 
@@ -1367,7 +1372,7 @@ def keep_main_spline(mask_path, image_path, output_path, config : SplineTestConf
     if config is not None:
         pixel_cm = config.get_pixel_cm()
 
-    spline_data, binary_mask, skeleton_mask = image_to_spline_data(mask_path, debug=True)
+    spline_data, binary_mask, skeleton_mask = image_to_spline_data(image_path=mask_path, debug=True)
     height, width = binary_mask.shape
     spline_variances = compute_spline_variances(spline_data)
 
