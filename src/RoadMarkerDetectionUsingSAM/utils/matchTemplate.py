@@ -3,7 +3,7 @@ import cv2
 import os
 import numpy as np
 from imutils.object_detection import non_max_suppression
-from utils.common import get_image
+from .common import get_image
 
 def matchTemplateImpl(draw_image, src_image, template_image, threshold=0.5):
     result = cv2.matchTemplate(src_image, template_image, cv2.TM_CCOEFF_NORMED)

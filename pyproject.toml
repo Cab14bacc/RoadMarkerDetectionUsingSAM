@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RoadMarkerDetectionUsingSAM"
+version = "0.1.0"
+description = "A package for road marker detection using SAM."
+requires-python = ">=3.8"
+dependencies = [
+    "opencv-python",
+    "numpy",
+    "tifffile",
+    "Pillow",
+    "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git",
+    "scipy",
+    "scikit-image",
+    "imutils",
+]
+
+[project.optional-dependencies]
+dev = [
+]
+
+
+[tool.setuptools.packages.find]
+where = ["src"]

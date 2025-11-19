@@ -2,10 +2,11 @@ import cv2
 import os
 import numpy as np
 import argparse
-from utils.matchTemplate import match_template_all_rotation
-from utils.configUtils.classifierConfig import ClassifierConfig
-from dataManager.mapJsonData import MapJsonData
-from utils.common import connected_components_to_scaled_mask
+
+from .utils.matchTemplate import match_template_all_rotation
+from .utils.configUtils.classifierConfig import ClassifierConfig
+from .dataManager.mapJsonData import MapJsonData
+from .utils.common import connected_components_to_scaled_mask
 
 def load_config(config_path):
     if not os.path.exists(config_path):

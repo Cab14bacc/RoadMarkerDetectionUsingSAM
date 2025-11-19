@@ -1,14 +1,12 @@
-from .tileManagerInterface import TileManagerInterface
-from .tileData import SamTileData
-
 import tifffile
 import cv2
-from color_filter import ColorFilter
-
-import sys
 import numpy as np
-sys.path.append("../utils")
-from tiffLoader import TiffLoader
+
+from .tileManagerInterface import TileManagerInterface
+from .tileData import SamTileData
+from ..color_filter import ColorFilter
+from ..utils.tiffLoader import TiffLoader
+
 
 """
 deprecated, not fixed 

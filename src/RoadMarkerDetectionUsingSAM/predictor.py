@@ -1,12 +1,11 @@
 import numpy as np
 import argparse
 import cv2
-import sys
 import os
 import time
 from PIL import Image
 
-from color_filter import ColorFilter
+from .color_filter import ColorFilter
 
 # Put this file in SAM_PROJECT/scripts
 #sys.path.append("..")
@@ -14,12 +13,10 @@ from segment_anything import sam_model_registry, SamPredictor
 
 # sys.path.append("./utils")
 # import show_view, sam_use, common
-import utils.show_view as show_view
-import utils.sam_use as sam_use
-import utils.common as common
-from utils.sam_mask_selector import SAMMaskSelector
-from utils.configUtils.predictorConfig import PredictorConfig
-from utils.tiffLoader import TiffLoader
+from .utils import show_view, sam_use, common
+from .utils.sam_mask_selector import SAMMaskSelector
+from .utils.configUtils.predictorConfig import PredictorConfig
+from .utils.tiffLoader import TiffLoader
 
 # sys.path.append("./mapJson")
 # TODO: add custom map vector data

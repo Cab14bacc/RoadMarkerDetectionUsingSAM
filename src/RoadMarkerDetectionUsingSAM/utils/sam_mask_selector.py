@@ -4,7 +4,7 @@ import cv2
 
 import common
 
-from utils.configUtils.predictorConfig import PredictorConfig
+from .configUtils.predictorConfig import PredictorConfig
 
 class SAMMaskSelector:
     def __init__(self, config):

@@ -1,5 +1,3 @@
-import numpy as np
-
 class TileData:
     def __init__(self, image, start_coord, tile_size=1024):
         self.image = image

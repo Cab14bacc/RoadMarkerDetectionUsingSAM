@@ -14,9 +14,9 @@ import random
 import warnings
 
 
-from dataManager.mapJsonData import SplineJsonData, MapJsonData, JsonData 
-from utils.common import connected_components_to_scaled_mask
-from utils.configUtils.splineTestConfig import SplineTestConfig
+from .dataManager.mapJsonData import SplineJsonData, MapJsonData, JsonData 
+from .utils.common import connected_components_to_scaled_mask
+from .utils.configUtils.splineTestConfig import SplineTestConfig
 
 #region skeleton points function
 

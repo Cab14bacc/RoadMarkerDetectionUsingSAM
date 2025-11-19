@@ -2,10 +2,8 @@ import cv2
 import argparse
 import os
 import numpy as np
-import sys
-sys.path.append("./utils")
-import utils.common as common
-from utils.configUtils.predictorConfig import PredictorConfig
+from .utils import common as common
+from .utils.configUtils.predictorConfig import PredictorConfig
 
 # filter out the color which not close to given color_list
 class ColorFilter:

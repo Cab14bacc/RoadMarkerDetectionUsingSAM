@@ -2,7 +2,6 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
-import common
 
 def build_point_grid(n_per_side: int) -> np.ndarray:
     """Generates a 2D grid of points evenly spaced in [0,1]x[0,1]."""

@@ -1,7 +1,4 @@
 import numpy as np
-import cv2
-from .tileData import TileData
-import os
 
 '''
 tile manager to split image and data size to each tile as {tile_size} pixel. 

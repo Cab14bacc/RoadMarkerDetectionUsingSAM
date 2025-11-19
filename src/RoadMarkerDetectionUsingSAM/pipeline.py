@@ -1,16 +1,23 @@
-# Internal Libraries
-import color_filter
-import predictor
-import spline_test
-# Internal Config/JsonData Classes
-from utils.configUtils.predictorConfig import PredictorConfig
-from utils.configUtils.splineTestConfig import SplineTestConfig
-from dataManager.mapJsonData import SplineJsonData
 # External Libraries
 import cv2
 import numpy as np
+# Internal Libraries
+from . import color_filter
+from . import predictor
+from . import spline_test
+# Internal Config/JsonData Classes
+from .utils.configUtils.predictorConfig import PredictorConfig
+from .utils.configUtils.splineTestConfig import SplineTestConfig
 
 def road_line_detection(image_path, config_path, negative_mask_path):
+    """
+    params:
+        image_path: path to image 
+        config_path: path to config
+        negative_mask_path: path to mask indicating areas to ignore
+    return 
+        json_data: class SplineJsonData, contains the detected road lines  
+    """
     # region Predictor and ColorFilter ===============================================
 
 
