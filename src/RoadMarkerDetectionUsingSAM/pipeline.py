@@ -21,7 +21,7 @@ def road_line_detection(image_path, config_path, negative_mask_path):
     # region Predictor and ColorFilter ===============================================
 
 
-    image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)
 
     predictor_config = PredictorConfig(config_path=config_path)
     if predictor_config.get_all_config() is None:
@@ -78,9 +78,4 @@ def road_line_detection(image_path, config_path, negative_mask_path):
 
     return json_data
 
-
-if __name__ == "__main__":
-    json_data = road_line_detection(r"./input/新生南_cropped_0_01/cropped_0001.tif", 
-                        r"./configs/config_0_01_no_save.yml", 
-                        r"./output/新生南_cropped_0_01/cropped_0001_tif/MarkerClassifier/result.png")
 
