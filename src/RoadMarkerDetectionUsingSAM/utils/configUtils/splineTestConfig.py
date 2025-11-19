@@ -1,7 +1,7 @@
 import os
 import sys
 
-from ..configUtils.config import Config
+from .config import Config
 
 class SplineTestConfig(Config):
     def get(self, field=None):

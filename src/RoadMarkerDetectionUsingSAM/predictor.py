@@ -4,28 +4,16 @@ import cv2
 import os
 import time
 from PIL import Image
-
-from .color_filter import ColorFilter
-
-# Put this file in SAM_PROJECT/scripts
-#sys.path.append("..")
 from segment_anything import sam_model_registry, SamPredictor
 
-# sys.path.append("./utils")
-# import show_view, sam_use, common
+from .color_filter import ColorFilter
 from .utils import show_view, sam_use, common
 from .utils.sam_mask_selector import SAMMaskSelector
 from .utils.configUtils.predictorConfig import PredictorConfig
 from .utils.tiffLoader import TiffLoader
-
-# sys.path.append("./mapJson")
-# TODO: add custom map vector data
-# from mapJson.mapJsonData import mapJsonData
-# from mapJson.mapObjData import MapJsonObj
-
-from dataManager.tileManager import SamTileManager
-from dataManager.bigTiffManager import BigTiffManager
-from dataManager.mapJsonData import MapJsonData
+from .dataManager.tileManager import SamTileManager
+from .dataManager.bigTiffManager import BigTiffManager
+from .dataManager.mapJsonData import MapJsonData
 
 def predict_process(image, predictor, input_points_list, input_labels_list, usage, config, save_mask_path=None, save_line_path=None, index=None):
     mask_selector = SAMMaskSelector(config=config)

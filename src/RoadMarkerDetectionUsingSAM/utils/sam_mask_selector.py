@@ -2,7 +2,7 @@ import os
 import numpy as np
 import cv2
 
-import common
+from . import common
 
 from .configUtils.predictorConfig import PredictorConfig
 
