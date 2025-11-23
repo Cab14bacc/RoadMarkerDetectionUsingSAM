@@ -1,18 +1,18 @@
 import cv2
 import numpy as np
-from scipy.ndimage import label
 import scipy.ndimage
-from skimage.morphology import skeletonize, thin
-from colorsys import hsv_to_rgb
-from scipy.interpolate import splprep, splev
-from scipy.spatial import cKDTree
-from scipy.ndimage import gaussian_filter
-
 import argparse
 import os
 import random
 import warnings
 
+from scipy.ndimage import label
+from skimage.morphology import skeletonize, thin
+from colorsys import hsv_to_rgb
+from scipy.interpolate import splprep, splev
+from scipy.spatial import cKDTree
+from scipy.ndimage import gaussian_filter
+from typing import Optional
 
 from .dataManager.mapJsonData import SplineJsonData, MapJsonData, JsonData 
 from .utils.common import connected_components_to_scaled_mask
@@ -1121,7 +1121,7 @@ def group_to_SplineJsonData(spline_data, groups, road_line_types, left_right_roa
         
     return json_data
 
-def classify_splines(spline_data, groups, image, config: SplineTestConfig | None = None, debug_path = None):
+def classify_splines(spline_data, groups, image, config: Optional[SplineTestConfig] = None, debug_path = None):
 
     # load image
     if (isinstance(image, np.ndarray)):
@@ -1364,7 +1364,7 @@ def compute_spline_variances(spline_data):
     
 #     return mean_directions
 
-def keep_main_spline(mask_path, image_path, output_path, config : SplineTestConfig | None = None):
+def keep_main_spline(mask_path, image_path, output_path, config: Optional[SplineTestConfig] = None):
     save_flag = False
     if config is not None:
         save_flag = config.get(field='SplineTest')["save_flag"]
