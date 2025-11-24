@@ -1408,8 +1408,13 @@ def keep_main_spline(mask_path, image_path, output_path, config: Optional[Spline
     # max_extension_length = max(height, width)
     max_extension_length = int(np.sqrt(height * height + width * width))
     groups = group_by_direction_and_extension(spline_data, max_projection=max_extension_length, condition='direction')
-    # find the largest group
-    largest_group = [max(groups, key=len)]
+    
+    if len(groups) == 0:
+        return None
+    else:
+        # find the largest group
+        largest_group = [max(groups, key=len)]
+
    
     if save_flag:
         result_img = draw_grouped_splines(spline_data, groups, result_img)
