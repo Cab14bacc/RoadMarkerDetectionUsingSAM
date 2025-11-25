@@ -42,11 +42,14 @@ change checkpoints path in config.yml
   - area_threshold: Maximum mask size to be retained
 
 ## Usage
+`import RoadMarkerDetectionUsingSAM`
+see pipeline.py for example usage
 
-A pipeline for roadline detection is in pipeline.py
+<br>
+Or directly use each component:
 
 Predict each element on road
-`python predictor.py -i <input_image> -o <output_path>`
+`python -m predictor.py -i <input_image> -o <output_path>`
 
 Test close color filter on road
-`python color_filter.py -i <input_image> -o <output_path>`
+`python -m color_filter.py -i <input_image> -o <output_path>`
