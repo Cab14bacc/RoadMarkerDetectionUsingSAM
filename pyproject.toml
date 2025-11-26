@@ -16,6 +16,7 @@ dependencies = [
     "scipy",
     "scikit-image",
     "imutils",
+    "PyYAML",
 ]
 
 [project.optional-dependencies]

@@ -1,6 +1,7 @@
 # External Libraries
 import cv2
 import numpy as np
+from pathlib import Path
 # Internal Libraries
 from . import color_filter
 from . import predictor
@@ -8,6 +9,8 @@ from . import spline_test
 # Internal Config/JsonData Classes
 from .utils.configUtils.predictorConfig import PredictorConfig
 from .utils.configUtils.splineTestConfig import SplineTestConfig
+from .utils.weights import ensure_SAM_weight
+
 
 def road_line_detection(image_path, config_path, negative_mask_path):
     """
@@ -53,6 +56,16 @@ def road_line_detection(image_path, config_path, negative_mask_path):
         raise ValueError("Missing required color usage field: 'line'")
 
     print(f"usage {usage} map to {color_usage}")
+
+    predictor_config_content = predictor_config.get('Predictor')
+    if predictor_config_content is None:
+        raise ValueError("Missing 'Predictor' section")
+
+    if "checkpoint" not in predictor_config_content:
+        raise ValueError("Missing required configuration field: 'checkpoint'")
+    
+    sam_checkpoint_path = ensure_SAM_weight(predictor_config_content['checkpoint'])
+    predictor_config_content['checkpoint'] = sam_checkpoint_path
 
     save_flag = False
     filter = color_filter.ColorFilter(image, 

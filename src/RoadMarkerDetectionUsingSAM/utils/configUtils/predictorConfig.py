@@ -1,7 +1,3 @@
-import yaml
-import os
-import sys
-
 from .config import Config
 
 
